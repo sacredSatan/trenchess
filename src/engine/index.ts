@@ -130,9 +130,34 @@ export default class Engine {
     this.state = initialState ?? DEFAULT_STATE;
   }
   
+  extractPiece(square: number) {
+    return square & MASKS.PIECES;
+  }
+  
+  extractColour(square: number) {
+    return square & MASKS.COLOUR;
+  }
+  
+  indexToPosition(index: number) {
+    const columns = "abcdefgh".split("");
+    const row = Math.trunc(index / 8);
+    const colIndex = index % 8;
+
+    return `${columns[colIndex]}${row + 1}`;
+  }
+  
+  positionToIndex(pos: string) {
+    const columns = "abcdefgh".split("");
+    const [ col, row ] = pos.split("");
+    const rowInt = parseInt(row) - 1;
+    const colIndex = columns.indexOf(col) + 1;
+    
+    return (rowInt * 8) + colIndex;
+  }
+  
   squareToChar(square: number) {
-    const piece = square & MASKS.PIECES;
-    const colour = square & MASKS.COLOUR;
+    const piece = this.extractPiece(square);
+    const colour = this.extractColour(square);
     
     let outputStr = colour === PIECES.WHITE ? CHAR_MAP[piece].toUpperCase() : CHAR_MAP[piece];
     
@@ -167,6 +192,40 @@ export default class Engine {
     console.log(`Mods: 0. ${MODIFIER_COLOR[TILE_MODIFIERS.TRENCH]("TRENCH")}, 1. ${MODIFIER_COLOR[TILE_MODIFIERS.PORTAL]("PORTAL")}, 2. ${MODIFIER_COLOR[TILE_MODIFIERS.ROYALTY_ONLY]("ROYALTY_ONLY")}, 3. ${MODIFIER_COLOR[TILE_MODIFIERS.BISHOP_ONLY]("BISHOP_ONLY")}, 4. ${MODIFIER_COLOR[TILE_MODIFIERS.ROOK_ONLY]("ROOK_ONLY")}`);
 
     return this.state.at(-1)?.toString(2);
+  }
+  
+  getPositions() {
+    return Object.fromEntries(this.state.map((square, index) => {
+      if(index > 63) {
+        return;
+      }
+      const piece = this.extractPiece(square);
+      const colour = this.extractColour(square);
+      const pieceChar = colour === PIECES.WHITE ? CHAR_MAP[piece].toUpperCase() : CHAR_MAP[piece];
+      
+      if(!piece || piece === PIECES.EMPTY) {
+        return;
+      }
+      
+      return [ this.indexToPosition(index), `${pieceChar}` ]
+    }).filter((a) => !!a));
+  }
+  
+  getPositionsForJsx() {
+    return Object.fromEntries(this.state.map((square, index) => {
+      if(index > 63) {
+        return;
+      }
+      const piece = this.extractPiece(square);
+      const pieceChar = CHAR_MAP[piece].toUpperCase();
+      const colour = this.extractColour(square) === PIECES.WHITE ? "w" : "b";
+      
+      if(!piece || piece === PIECES.EMPTY) {
+        return;
+      }
+      
+      return [ this.indexToPosition(index), `${colour}${pieceChar}` ]
+    }).filter((a) => !!a));
   }
   
   // I don't want to spend time implementing actual algebraic notation parsing right now (eventually will have to, when I want to support castles etc I guess)
