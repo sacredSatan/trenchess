@@ -122,6 +122,12 @@ const CHAR_MAP = {
 const BOARD_COL_ROW = `    ${"abcdefgh".split("").join(" ")}`;
 const BOARD_BORDER_ROW = `  +-----------------+`;
 
+enum DIRECTION {
+  DIAGONAL = "DIAGONAL",
+  PLUS = "PLUS",
+  KNIGHT = "KNIGHT",
+  ALL = "ALL",
+}
 
 export default class Engine {
   private state: number[];
@@ -234,9 +240,19 @@ export default class Engine {
     const [ from, to ] = notation.split(" ");
     const fromSquareIndex = SQUARE_INDEX_MAP[from];
     const toSquareIndex = SQUARE_INDEX_MAP[to];
-        
+    
+    if(fromSquareIndex === toSquareIndex) {
+      return this.draw();
+    }
+    
+    const movableSquares = this.getMovableSquares(from);
+    if(!movableSquares.has(toSquareIndex)) {
+      return this.draw();
+    }
+
     const fromSquarePiece = this.state[fromSquareIndex] & MASKS.PIECE_W_COLOUR;
-    this.state[toSquareIndex] = this.state[toSquareIndex] | MASKS.PIECE_W_COLOUR & fromSquarePiece;
+    const toSquarePiece = this.state[toSquareIndex] & MASKS.PIECE_W_COLOUR;
+    this.state[toSquareIndex] = toSquarePiece ^ toSquarePiece | fromSquarePiece;
     this.state[fromSquareIndex] = fromSquarePiece ^ fromSquarePiece;
     
     return this.draw();
@@ -249,5 +265,128 @@ export default class Engine {
     this.state[targetIndex] = currentModifier ^ currentModifier | modifierValue;
     
     return this.draw();
+  }
+  
+  getSquaresWithinBoundary(start: number, directionMod: number, boundary: Set<number>, depth = 8) {
+    const squares = [];
+    let currentLocation = start + directionMod;
+    while(currentLocation >= 0 && currentLocation < 64 && depth--) {
+      const prevLocation = currentLocation - directionMod;
+      if(boundary.has(currentLocation) && boundary.has(prevLocation)) {
+        break;
+      }
+      squares.push(currentLocation);
+      currentLocation = currentLocation + directionMod;
+    }
+    
+    return squares;
+  }
+  
+  // no collision right now
+  getSquaresInDirection(location: string, direction: DIRECTION, depth = 8) {
+    const squareIndex = SQUARE_INDEX_MAP[location];
+    const leftWall = new Set([ 0, 8, 16, 24, 32, 40, 48, 56 ]);
+    const rightWall = new Set([ 7, 15, 23, 31, 39, 47, 55, 63 ]);
+    const topWall = new Set([ 56, 57, 58, 59, 60, 61, 62, 63 ]);
+    const bottomWall = new Set([ 0, 1, 2, 3, 4, 5, 6, 7, ]);
+    const horizontalBoundary = new Set([ ...bottomWall, ...topWall ]);
+    const verticalBoundary = new Set([ ...leftWall, ...rightWall ]);
+    const squareBoundary = new Set([ ...horizontalBoundary, ...verticalBoundary ]);
+    
+    const squares: Array<number[] | number> = [];
+    if(direction === DIRECTION.PLUS || direction === DIRECTION.ALL) {
+      const left = this.getSquaresWithinBoundary(squareIndex, -1, verticalBoundary, depth);
+      const right = this.getSquaresWithinBoundary(squareIndex, 1, verticalBoundary, depth);
+      const up = this.getSquaresWithinBoundary(squareIndex, +8, horizontalBoundary, depth);
+      const down = this.getSquaresWithinBoundary(squareIndex, -8, horizontalBoundary, depth);
+      squares.push(left, right, up, down);
+    }
+    
+    if(direction === DIRECTION.DIAGONAL || direction === DIRECTION.ALL) {
+      const topLeft = this.getSquaresWithinBoundary(squareIndex, 7, squareBoundary, depth);
+      const topRight = this.getSquaresWithinBoundary(squareIndex, 9, squareBoundary, depth);
+      const bottomLeft = this.getSquaresWithinBoundary(squareIndex, -9, squareBoundary, depth);
+      const bottomRight = this.getSquaresWithinBoundary(squareIndex, -7, squareBoundary, depth);
+      squares.push(topLeft, topRight, bottomLeft, bottomRight);
+    }
+    
+    if(direction === DIRECTION.KNIGHT) {
+      const plusDirWithinBoundary = this.getSquaresInDirection(location, DIRECTION.PLUS, 2);
+      const ekBeModsVertical = [ 16, -16 ];
+      const ekBeModsHorizontal = [ 2, -2 ];
+      ekBeModsVertical.forEach((mod) => {
+        const beSquare = squareIndex + mod;
+        if(plusDirWithinBoundary.has(beSquare)) {
+          if(!leftWall.has(beSquare)) {
+            squares.push(beSquare - 1);
+          }
+          if(!rightWall.has(beSquare)) {
+            squares.push(beSquare + 1);
+          }
+        }
+      });
+      
+      ekBeModsHorizontal.forEach((mod) => {
+        const beSquare = squareIndex + mod;
+        if(plusDirWithinBoundary.has(beSquare)) {
+          if(!bottomWall.has(beSquare)) {
+            squares.push(beSquare - 8);
+          }
+          if(!topWall.has(beSquare)) {
+            squares.push(beSquare + 8);
+          }
+        }
+      });
+    }
+
+    return new Set(squares.flat());
+  }
+  
+  getMovableSquares(location: string) {
+    const squareIndex = SQUARE_INDEX_MAP[location];
+    const locationSquare = this.state[squareIndex];
+
+    const currentPiece = this.extractPiece(locationSquare);
+    const colour = this.extractColour(locationSquare);
+
+    if(currentPiece === PIECES.KNIGHT) {
+      return this.getSquaresInDirection(location, DIRECTION.KNIGHT);
+    }
+    
+    if(currentPiece === PIECES.QUEEN) {
+      return this.getSquaresInDirection(location, DIRECTION.ALL);
+    }
+    
+    if(currentPiece === PIECES.KING) {
+      return this.getSquaresInDirection(location, DIRECTION.ALL, 1);
+    }
+    
+    if(currentPiece === PIECES.BISHOP) {
+      return this.getSquaresInDirection(location, DIRECTION.DIAGONAL);
+    }
+
+    if(currentPiece === PIECES.ROOK) {
+      return this.getSquaresInDirection(location, DIRECTION.PLUS);
+    }
+    
+    const movableSquares = new Set<number>();
+    if(currentPiece === PIECES.PAWN) {
+      // not sure if I want to tag "unmoved" pieces,
+      // I'll just allow the pawn to move two squares if they're in the 2nd closest row to the players
+      if(colour === PIECES.WHITE) {
+        movableSquares.add(squareIndex + 8);
+        
+        if(squareIndex >= 8 && squareIndex <= 15) {
+          movableSquares.add(squareIndex + 16);
+        }
+      } else if(colour === PIECES.BLACK) {
+        movableSquares.add(squareIndex - 8);
+        
+        if(squareIndex >= 48 && squareIndex <= 55) {
+          movableSquares.add(squareIndex - 16);
+        }
+      }
+    }
+    return movableSquares;
   }
 }
