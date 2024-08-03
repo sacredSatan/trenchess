@@ -242,20 +242,21 @@ export default class Engine {
     const toSquareIndex = SQUARE_INDEX_MAP[to];
     
     if(fromSquareIndex === toSquareIndex) {
-      return this.draw();
+      return false;
     }
     
     const movableSquares = this.getMovableSquares(from);
     if(!movableSquares.has(toSquareIndex)) {
-      return this.draw();
+      return false;
     }
 
     const fromSquarePiece = this.state[fromSquareIndex] & MASKS.PIECE_W_COLOUR;
     const toSquarePiece = this.state[toSquareIndex] & MASKS.PIECE_W_COLOUR;
     this.state[toSquareIndex] = toSquarePiece ^ toSquarePiece | fromSquarePiece;
     this.state[fromSquareIndex] = fromSquarePiece ^ fromSquarePiece;
-    
-    return this.draw();
+    this.draw();
+
+    return true;
   }
   
   addModifier(location: string, modifier: string | number) {
