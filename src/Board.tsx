@@ -3,6 +3,7 @@ import Engine from './engine/index';
 import { DataConnection } from 'peerjs';
 
 type BoardProps = {
+  isWhite: boolean;
   position: Record<string, string>;
   setPosition: React.Dispatch<React.SetStateAction<string>>;
   engine: Engine;
@@ -60,7 +61,7 @@ const squareStyle = { paddingBottom: "100%", position: "relative" as const };
 const pieceStyle = { position: "absolute" as const, top: 0, bottom: 0, width: "100%", height: "100%" };
 
 const Board: React.FC<BoardProps> = (props) => {
-  const { position, setPosition, engine, connection } = props;
+  const { position, setPosition, engine, connection, isWhite } = props;
   const activePosition = useRef<string>();
   const [ movableSquares, setMovableSquares ] = useState<Set<number>>();
   
@@ -94,7 +95,7 @@ const Board: React.FC<BoardProps> = (props) => {
     return dropHandler;
   }, [connection, engine, setPosition]);
   
-  return <div style={gridStyle} ref={containerRef} onDragStart={dragStartHandler} onDragEnd={dragEndHandler} onDrop={dropHandler} onDragOver={(e) => e.preventDefault()}>
+  return <div style={{ ...gridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }} ref={containerRef} onDragStart={dragStartHandler} onDragEnd={dragEndHandler} onDrop={dropHandler} onDragOver={(e) => e.preventDefault()}>
     {new Array(64).fill(undefined).map((_, index) => {
       // index 0 here = a8, index 7 = h8, index 8 = a7
       // need to transform the index number to draw piece in the correct square
@@ -109,20 +110,28 @@ const Board: React.FC<BoardProps> = (props) => {
       const _squareStyle = { ...squareStyle, backgroundColor: (index % 2 + rowInt % 2) % 2 ? "#f0d9b5" : "#b58863", opacity: isMovable ? 0.5 : 1, boxShadow: "rgb(0,0,0,0) 0px 0px 0px 0px" };
       const pieceImageName = piece ? piece === piece.toLowerCase() ? "b" + piece : "w" + piece.toLowerCase() : null;
       return <div onDragEnter={dragEnterHandler} data-movable={isMovable} onDragLeave={dragLeaveHandler} id={positionName} data-index={normalizedIndex} key={positionName} data-position={positionName} style={_squareStyle} onClick={(e) => {
-        if(activePosition.current) {
-          const move = `${activePosition.current} ${positionName}`;
-          if(engine.move(move)) {
-            connection?.send(move);
-            setPosition(engine.getPositions());
-            setMovableSquares(undefined);
-            activePosition.current = undefined;
-          }
+        console.log(activePosition.current);
+        if(activePosition.current === positionName) {
+          activePosition.current = undefined;
         } else {
-          setMovableSquares(engine.getMovableSquares(positionName));
-          activePosition.current = positionName;
+          if(activePosition.current) {
+            const move = `${activePosition.current} ${positionName}`;
+            if(engine.move(move)) {
+              connection?.send(move);
+              setPosition(engine.getPositions());
+              setMovableSquares(undefined);
+              activePosition.current = undefined;
+            } else {
+              setMovableSquares(engine.getMovableSquares(positionName));
+              activePosition.current = positionName;
+            }
+          } else {
+            setMovableSquares(engine.getMovableSquares(positionName));
+            activePosition.current = positionName;
+          }
         }
       }}>
-        {piece ? <div data-position={positionName} data-has-piece={true} data-movable={isMovable} draggable={true} style={{ ...pieceStyle, backgroundImage: `url(./pieces/${pieceImageName}.svg)`, backgroundSize: "contain" }}></div>: null}
+        {piece ? <div data-position={positionName} data-has-piece={true} data-movable={isMovable} draggable={true} style={{ ...pieceStyle, backgroundImage: `url(./pieces/${pieceImageName}.svg)`, backgroundSize: "contain", transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}></div>: null}
       </div>;
     })}
   </div>;

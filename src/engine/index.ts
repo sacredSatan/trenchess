@@ -124,10 +124,16 @@ const BOARD_BORDER_ROW = `  +-----------------+`;
 
 enum DIRECTION {
   DIAGONAL = "DIAGONAL",
+  DIAGONAL_TOP = "DIAGONAL_TOP",
+  DIAGONAL_BOTTOM = "DIAGONAL_BOTTOM",
   PLUS = "PLUS",
   KNIGHT = "KNIGHT",
   ALL = "ALL",
 }
+
+const WHITE_PIECES = new Set([ PIECES.PAWN, ...DEFAULT_ORDER ].map((p) => p | PIECES.WHITE));
+const BLACK_PIECES = new Set([ PIECES.PAWN, ...DEFAULT_ORDER ].map((p) => p | PIECES.BLACK));
+const ALL_PIECES = new Set([ ...WHITE_PIECES, ...BLACK_PIECES ]);
 
 export default class Engine {
   private state: number[];
@@ -136,12 +142,25 @@ export default class Engine {
     this.state = initialState ?? DEFAULT_STATE;
   }
   
+  getGameState() {
+    return this.state.at(-1);
+  }
+  
+  setGameState(gameState: number) {
+    return this.state[this.state.length - 1] = gameState;
+  }
+  
   extractPiece(square: number) {
     return square & MASKS.PIECES;
   }
   
   extractColour(square: number) {
     return square & MASKS.COLOUR;
+  }
+  
+  extractPieceWColourFromLocation(location: number) {
+    const square = this.state[location];
+    return square & MASKS.PIECE_W_COLOUR;
   }
   
   indexToPosition(index: number) {
@@ -244,18 +263,25 @@ export default class Engine {
     if(fromSquareIndex === toSquareIndex) {
       return false;
     }
-    
+
+    const fromSquarePiece = this.state[fromSquareIndex] & MASKS.PIECE_W_COLOUR;
+    const fromPieceColour = fromSquarePiece & MASKS.COLOUR;
+    if((fromPieceColour === PIECES.WHITE && this.getGameState() === GAME_STATE.BLACK_TURN) ||
+      fromPieceColour === PIECES.BLACK && this.getGameState() === GAME_STATE.WHITE_TURN) {
+      return false;
+    }
+  
     const movableSquares = this.getMovableSquares(from);
     if(!movableSquares.has(toSquareIndex)) {
       return false;
     }
 
-    const fromSquarePiece = this.state[fromSquareIndex] & MASKS.PIECE_W_COLOUR;
     const toSquarePiece = this.state[toSquareIndex] & MASKS.PIECE_W_COLOUR;
     this.state[toSquareIndex] = toSquarePiece ^ toSquarePiece | fromSquarePiece;
     this.state[fromSquareIndex] = fromSquarePiece ^ fromSquarePiece;
     this.draw();
 
+    this.setGameState(this.getGameState() === GAME_STATE.WHITE_TURN ? GAME_STATE.BLACK_TURN : GAME_STATE.WHITE_TURN);
     return true;
   }
   
@@ -268,7 +294,9 @@ export default class Engine {
     return this.draw();
   }
   
-  getSquaresWithinBoundary(start: number, directionMod: number, boundary: Set<number>, depth = 8) {
+  getSquaresWithinBoundary(start: number, directionMod: number, boundary: Set<number>, options: { depth?: number; collisionPieces?: Set<number> }) {
+    const { depth: _depth = 8, collisionPieces } = options;
+    let depth = _depth;
     const squares = [];
     let currentLocation = start + directionMod;
     while(currentLocation >= 0 && currentLocation < 64 && depth--) {
@@ -276,15 +304,22 @@ export default class Engine {
       if(boundary.has(currentLocation) && boundary.has(prevLocation)) {
         break;
       }
-      squares.push(currentLocation);
-      currentLocation = currentLocation + directionMod;
+      
+      const pieceWColour = this.extractPieceWColourFromLocation(currentLocation);
+      if(!collisionPieces?.has(pieceWColour)) {
+        squares.push(currentLocation);
+        currentLocation = currentLocation + directionMod;
+      } else {
+        break;
+      }
     }
     
     return squares;
   }
   
   // no collision right now
-  getSquaresInDirection(location: string, direction: DIRECTION, depth = 8) {
+  getSquaresInDirection(location: string, direction: DIRECTION, options: { depth?: number; collisionPieces?: Set<number> }) {
+    const { collisionPieces } = options;
     const squareIndex = SQUARE_INDEX_MAP[location];
     const leftWall = new Set([ 0, 8, 16, 24, 32, 40, 48, 56 ]);
     const rightWall = new Set([ 7, 15, 23, 31, 39, 47, 55, 63 ]);
@@ -296,33 +331,53 @@ export default class Engine {
     
     const squares: Array<number[] | number> = [];
     if(direction === DIRECTION.PLUS || direction === DIRECTION.ALL) {
-      const left = this.getSquaresWithinBoundary(squareIndex, -1, verticalBoundary, depth);
-      const right = this.getSquaresWithinBoundary(squareIndex, 1, verticalBoundary, depth);
-      const up = this.getSquaresWithinBoundary(squareIndex, +8, horizontalBoundary, depth);
-      const down = this.getSquaresWithinBoundary(squareIndex, -8, horizontalBoundary, depth);
+      const left = this.getSquaresWithinBoundary(squareIndex, -1, verticalBoundary, options);
+      const right = this.getSquaresWithinBoundary(squareIndex, 1, verticalBoundary, options);
+      const up = this.getSquaresWithinBoundary(squareIndex, +8, horizontalBoundary, options);
+      const down = this.getSquaresWithinBoundary(squareIndex, -8, horizontalBoundary, options);
       squares.push(left, right, up, down);
     }
     
     if(direction === DIRECTION.DIAGONAL || direction === DIRECTION.ALL) {
-      const topLeft = this.getSquaresWithinBoundary(squareIndex, 7, squareBoundary, depth);
-      const topRight = this.getSquaresWithinBoundary(squareIndex, 9, squareBoundary, depth);
-      const bottomLeft = this.getSquaresWithinBoundary(squareIndex, -9, squareBoundary, depth);
-      const bottomRight = this.getSquaresWithinBoundary(squareIndex, -7, squareBoundary, depth);
+      const topLeft = this.getSquaresWithinBoundary(squareIndex, 7, squareBoundary, options);
+      const topRight = this.getSquaresWithinBoundary(squareIndex, 9, squareBoundary, options);
+      const bottomLeft = this.getSquaresWithinBoundary(squareIndex, -9, squareBoundary, options);
+      const bottomRight = this.getSquaresWithinBoundary(squareIndex, -7, squareBoundary, options);
       squares.push(topLeft, topRight, bottomLeft, bottomRight);
     }
     
+    if(direction === DIRECTION.DIAGONAL_TOP) {
+      const topLeft = this.getSquaresWithinBoundary(squareIndex, 7, squareBoundary, options);
+      const topRight = this.getSquaresWithinBoundary(squareIndex, 9, squareBoundary, options);
+      squares.push(topLeft, topRight);
+    }
+    
+    if(direction === DIRECTION.DIAGONAL_BOTTOM) {
+      const bottomLeft = this.getSquaresWithinBoundary(squareIndex, -9, squareBoundary, options);
+      const bottomRight = this.getSquaresWithinBoundary(squareIndex, -7, squareBoundary, options);
+      squares.push(bottomLeft, bottomRight);
+    }
+    
     if(direction === DIRECTION.KNIGHT) {
-      const plusDirWithinBoundary = this.getSquaresInDirection(location, DIRECTION.PLUS, 2);
+      const plusDirWithinBoundary = this.getSquaresInDirection(location, DIRECTION.PLUS, { depth: 2 });
       const ekBeModsVertical = [ 16, -16 ];
       const ekBeModsHorizontal = [ 2, -2 ];
       ekBeModsVertical.forEach((mod) => {
         const beSquare = squareIndex + mod;
         if(plusDirWithinBoundary.has(beSquare)) {
           if(!leftWall.has(beSquare)) {
-            squares.push(beSquare - 1);
+            const finalIndex = beSquare - 1;
+            const pieceWColour = this.extractPieceWColourFromLocation(finalIndex);
+            if(!collisionPieces?.has(pieceWColour)) {
+              squares.push(beSquare - 1);
+            }
           }
           if(!rightWall.has(beSquare)) {
-            squares.push(beSquare + 1);
+            const finalIndex = beSquare + 1;
+            const pieceWColour = this.extractPieceWColourFromLocation(finalIndex);
+            if(!collisionPieces?.has(pieceWColour)) {
+              squares.push(finalIndex);
+            }
           }
         }
       });
@@ -331,10 +386,18 @@ export default class Engine {
         const beSquare = squareIndex + mod;
         if(plusDirWithinBoundary.has(beSquare)) {
           if(!bottomWall.has(beSquare)) {
-            squares.push(beSquare - 8);
+            const finalIndex = beSquare - 8;
+            const pieceWColour = this.extractPieceWColourFromLocation(finalIndex);
+            if(!collisionPieces?.has(pieceWColour)) {
+              squares.push(finalIndex);
+            }
           }
           if(!topWall.has(beSquare)) {
-            squares.push(beSquare + 8);
+            const finalIndex = beSquare + 8;
+            const pieceWColour = this.extractPieceWColourFromLocation(finalIndex);
+            if(!collisionPieces?.has(pieceWColour)) {
+              squares.push(finalIndex);
+            }
           }
         }
       });
@@ -349,25 +412,26 @@ export default class Engine {
 
     const currentPiece = this.extractPiece(locationSquare);
     const colour = this.extractColour(locationSquare);
+    const collisionPieces = colour === PIECES.WHITE ? WHITE_PIECES : BLACK_PIECES;
 
     if(currentPiece === PIECES.KNIGHT) {
-      return this.getSquaresInDirection(location, DIRECTION.KNIGHT);
+      return this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces });
     }
     
     if(currentPiece === PIECES.QUEEN) {
-      return this.getSquaresInDirection(location, DIRECTION.ALL);
+      return this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces });
     }
     
     if(currentPiece === PIECES.KING) {
-      return this.getSquaresInDirection(location, DIRECTION.ALL, 1);
+      return this.getSquaresInDirection(location, DIRECTION.ALL, { depth: 1, collisionPieces });
     }
     
     if(currentPiece === PIECES.BISHOP) {
-      return this.getSquaresInDirection(location, DIRECTION.DIAGONAL);
+      return this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces });
     }
 
     if(currentPiece === PIECES.ROOK) {
-      return this.getSquaresInDirection(location, DIRECTION.PLUS);
+      return this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces });
     }
     
     const movableSquares = new Set<number>();
@@ -375,17 +439,33 @@ export default class Engine {
       // not sure if I want to tag "unmoved" pieces,
       // I'll just allow the pawn to move two squares if they're in the 2nd closest row to the players
       if(colour === PIECES.WHITE) {
-        movableSquares.add(squareIndex + 8);
-        
-        if(squareIndex >= 8 && squareIndex <= 15) {
-          movableSquares.add(squareIndex + 16);
+        const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_TOP, { depth: 1, collisionPieces: new Set([ ...WHITE_PIECES, PIECES.EMPTY ]) });
+        const pieceWColour = this.extractPieceWColourFromLocation(squareIndex + 8);
+        if(!ALL_PIECES.has(pieceWColour)) {
+          movableSquares.add(squareIndex + 8);
+
+          if(squareIndex >= 8 && squareIndex <= 15) {
+            const pieceWColour = this.extractPieceWColourFromLocation(squareIndex + 16);
+            if(!ALL_PIECES.has(pieceWColour)) {
+              movableSquares.add(squareIndex + 16);
+            }
+          }
         }
+        captureSquares.forEach((s) => movableSquares.add(s));
       } else if(colour === PIECES.BLACK) {
-        movableSquares.add(squareIndex - 8);
-        
-        if(squareIndex >= 48 && squareIndex <= 55) {
-          movableSquares.add(squareIndex - 16);
+        const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_BOTTOM, { depth: 1, collisionPieces: new Set([ ...BLACK_PIECES, PIECES.EMPTY ]) });
+        const pieceWColour = this.extractPieceWColourFromLocation(squareIndex - 8);
+        if(!ALL_PIECES.has(pieceWColour)) {
+          movableSquares.add(squareIndex - 8);
+          
+          if(squareIndex >= 48 && squareIndex <= 55) {
+            const pieceWColour = this.extractPieceWColourFromLocation(squareIndex - 16);
+            if(!ALL_PIECES.has(pieceWColour)) {
+              movableSquares.add(squareIndex - 16);
+            }
+          }
         }
+        captureSquares.forEach((s) => movableSquares.add(s));
       }
     }
     return movableSquares;
