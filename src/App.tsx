@@ -55,7 +55,7 @@ function App() {
   return (
     <>
       <h6>ID: {peerId?.replaceAll(PEER_ID_PREFIX, "")}</h6>
-      <Board isWhite={isHost} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
+      <Board isWhite={!isHost} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
     </>
   )
 }

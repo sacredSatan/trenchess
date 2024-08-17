@@ -71,7 +71,7 @@ const Board: React.FC<BoardProps> = (props) => {
       const pieceSquare = e.target as HTMLDivElement;
       pieceSquare.style.opacity = "0.5";
       e.dataTransfer.setData("position", pieceSquare.dataset.position ?? "");
-      setMovableSquares(engine.getMovableSquares(pieceSquare.dataset.position ?? ""));
+      setMovableSquares(engine.getMovableSquares(pieceSquare.dataset.position ?? "")[0]);
       console.log(e, pieceSquare);
     };
     return dragStartHandler;
@@ -109,7 +109,7 @@ const Board: React.FC<BoardProps> = (props) => {
       const piece = position[positionName];
       const _squareStyle = { ...squareStyle, backgroundColor: (index % 2 + rowInt % 2) % 2 ? "#f0d9b5" : "#b58863", opacity: isMovable ? 0.5 : 1, boxShadow: "rgb(0,0,0,0) 0px 0px 0px 0px" };
       const pieceImageName = piece ? piece === piece.toLowerCase() ? "b" + piece : "w" + piece.toLowerCase() : null;
-      return <div onDragEnter={dragEnterHandler} data-movable={isMovable} onDragLeave={dragLeaveHandler} id={positionName} data-index={normalizedIndex} key={positionName} data-position={positionName} style={_squareStyle} onClick={(e) => {
+      return <div onDragEnter={dragEnterHandler} data-movable={isMovable} onDragLeave={dragLeaveHandler} id={positionName} data-index={normalizedIndex} key={positionName} data-position={positionName} style={_squareStyle} onClick={() => {
         console.log(activePosition.current);
         if(activePosition.current === positionName) {
           activePosition.current = undefined;
@@ -122,11 +122,11 @@ const Board: React.FC<BoardProps> = (props) => {
               setMovableSquares(undefined);
               activePosition.current = undefined;
             } else {
-              setMovableSquares(engine.getMovableSquares(positionName));
+              setMovableSquares(engine.getMovableSquares(positionName)[0]);
               activePosition.current = positionName;
             }
           } else {
-            setMovableSquares(engine.getMovableSquares(positionName));
+            setMovableSquares(engine.getMovableSquares(positionName)[0]);
             activePosition.current = positionName;
           }
         }
