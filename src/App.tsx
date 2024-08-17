@@ -55,6 +55,7 @@ function App() {
   return (
     <>
       <h6>ID: {peerId?.replaceAll(PEER_ID_PREFIX, "")}</h6>
+      <button type="button" onClick={(() => { engine.undoMove(); setPosition(engine.getPositions()) })}>undo move</button>
       <Board isWhite={!isHost} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
     </>
   )

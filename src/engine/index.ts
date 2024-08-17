@@ -16,6 +16,7 @@ enum PIECES {
   KNIGHT = 0b00_100,
   QUEEN  = 0b00_101,
   KING   = 0b00_110,
+  EN_PASSANT = 0b00_111,
   WHITE  = 0b01_000,
   BLACK  = 0b10_000,
   EMPTY  = 0,
@@ -42,7 +43,8 @@ enum TILE_MODIFIERS {
   BISHOP_ONLY   = 0b0101_00000,
   
   // treating valid en passant as a modifier for now
-  EN_PASSANT    = 0b1_00000000,
+  // didn't do it this way after all
+  // EN_PASSANT    = 0b1_00000000,
 }
 
 enum BOARD_MASKS {
@@ -55,22 +57,24 @@ enum BOARD_MASKS {
 // currently thinking of representing the game state in a single number for both white and black
 // what I think I need to keep track of
 // castles: (only keep track of whether a king side / queen side castle is allowed)
+// 2 illegal counters, game turn
+// have to do promotions too at some point
 enum GAME_STATE {
   WHITE_TURN = 0b0,
   BLACK_TURN = 0b1,
+  CASTLE = 0b1111_0,
+  ILLEGAL_COUNTER = 0b11_0000_0,
+}
+
+enum GAME_STATE_MASKS {
+  TURN = 0b1,
+  W_ILLEGAL = 0b01_0000_0,
+  B_ILLEGAL = 0b10_0000_0,
   BQ_CASTLE = 0b0001_0,
   BK_CASTLE = 0b0010_0,
   WQ_CASTLE = 0b0100_0,
   WK_CASTLE = 0b1000_0,
-  ILLEGAL_COUNTER = 0b11_0000_0,
 }
-
-// enum GAME_STATE_MASKS {
-//   TURN = 0b1,
-//   CASTLE = 0b1111_0,
-//   W_ILLEGAL = 0b01_0000_0,
-//   B_ILLEGAL = 0b10_0000_0,
-// }
 
 const MODIFIER_INDEX = {
   "0": TILE_MODIFIERS.TRENCH,
@@ -130,6 +134,7 @@ const CHAR_MAP = {
   [PIECES.BISHOP]: "b",
   [PIECES.QUEEN]: "q",
   [PIECES.KING]: "k",
+  [PIECES.EN_PASSANT]: "e",
 } as Record<number, string>;
 const BOARD_COL_ROW = `    ${"abcdefgh".split("").join(" ")}`;
 const BOARD_BORDER_ROW = `  +-----------------+`;
@@ -140,6 +145,8 @@ enum DIRECTION {
   DIAGONAL_BOTTOM = "DIAGONAL_BOTTOM",
   PLUS = "PLUS",
   KNIGHT = "KNIGHT",
+  B_PAWN = "B_PAWN",
+  W_PAWN = "W_PAWN",
   PAWN = "PAWN",
   ALL = "ALL",
 }
@@ -273,7 +280,7 @@ export default class Engine {
   // I don't want to spend time implementing actual algebraic notation parsing right now (eventually will have to, when I want to support castles etc I guess)
   // current objective is to get this in a state where I can just write actual gameplay logic with a barebones ui
   move(notation: string) {
-    const nextState = [ ...this.state ];
+    let nextState = [ ...this.state ];
     const [ from, to ] = notation.split(" ");
     const fromSquareIndex = SQUARE_INDEX_MAP[from];
     const toSquareIndex = SQUARE_INDEX_MAP[to];
@@ -284,8 +291,9 @@ export default class Engine {
     
     const isWhiteTurn = this.getGameState() === GAME_STATE.WHITE_TURN;
 
-    const fromSquarePiece = this.state[fromSquareIndex] & BOARD_MASKS.PIECE_W_COLOUR;
-    const fromPieceColour = fromSquarePiece & BOARD_MASKS.COLOUR;
+    const fromSquarePieceWColour = this.state[fromSquareIndex] & BOARD_MASKS.PIECE_W_COLOUR;
+    const fromPieceColour = fromSquarePieceWColour & BOARD_MASKS.COLOUR;
+    const fromSquarePiece = fromSquarePieceWColour & BOARD_MASKS.PIECES;
     if((fromPieceColour === PIECES.WHITE && !isWhiteTurn) ||
       fromPieceColour === PIECES.BLACK && isWhiteTurn) {
       return false;
@@ -295,11 +303,44 @@ export default class Engine {
     if(!movableSquares.has(toSquareIndex)) {
       return false;
     }
-
-    const toSquarePiece = this.state[toSquareIndex] & BOARD_MASKS.PIECE_W_COLOUR;
-    nextState[toSquareIndex] = toSquarePiece ^ toSquarePiece | fromSquarePiece;
-    nextState[fromSquareIndex] = fromSquarePiece ^ fromSquarePiece;
     
+    const toSquarePieceWColour = this.state[toSquareIndex] & BOARD_MASKS.PIECE_W_COLOUR;
+    nextState[toSquareIndex] = toSquarePieceWColour ^ toSquarePieceWColour | fromSquarePieceWColour;
+    nextState[fromSquareIndex] = fromSquarePieceWColour ^ fromSquarePieceWColour;
+    
+    if(fromSquarePiece === PIECES.PAWN) {
+      if(fromPieceColour === PIECES.WHITE) {
+        if(toSquarePieceWColour === (PIECES.EN_PASSANT | PIECES.BLACK)) {
+          nextState[toSquareIndex - 8] ^= (PIECES.PAWN | PIECES.BLACK);
+        }
+      } else if(fromPieceColour === PIECES.BLACK) {
+        if(toSquarePieceWColour === (PIECES.EN_PASSANT | PIECES.WHITE)) {
+          nextState[toSquareIndex + 8] ^= (PIECES.PAWN | PIECES.WHITE);
+        }
+      }
+    }
+
+    nextState = nextState.map((square, index) => {
+      if(index > 63) {
+        return square;
+      }
+      if(this.extractPiece(square) === PIECES.EN_PASSANT) {
+        return square ^ (square & BOARD_MASKS.PIECE_W_COLOUR);
+      }
+      return square;
+    });
+
+    if(fromSquarePiece === PIECES.PAWN) {
+      if(fromPieceColour === PIECES.WHITE) {
+        if(fromSquareIndex >= 8 && fromSquareIndex <= 15 && toSquareIndex === fromSquareIndex + 16) {
+          nextState[toSquareIndex - 8] = PIECES.EN_PASSANT | PIECES.WHITE;
+        }
+      } else if(fromPieceColour === PIECES.BLACK) {
+        if(fromSquareIndex >= 48 && fromSquareIndex <= 55 && toSquareIndex === fromSquareIndex - 16) {
+          nextState[toSquareIndex + 8] = PIECES.EN_PASSANT | PIECES.BLACK;
+        }
+      }
+    }
     this.state = nextState;
     
     const kingInDanger = this.checkKingInDanger(nextState);
@@ -317,7 +358,6 @@ export default class Engine {
       if(!isWhiteTurn) {
         console.log("TIS ILLEGAL");
         this.undoMove();
-        
         return false;
       } else {
         console.log("CHECK!");
@@ -357,9 +397,11 @@ export default class Engine {
       const colour = this.extractColour(square);
       const location = LOCATION_MAP[squareIndex];
       const collisionPieces = colour === PIECES.WHITE ? WHITE_PIECES : BLACK_PIECES;
+      const pawnDirection = colour === PIECES.WHITE ? DIRECTION.B_PAWN : DIRECTION.W_PAWN;
       const [ , plusSquares ] = this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces });
       const [ , diagonalSquares ] = this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces });
       const [ , knightSqaures ] = this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces });
+      const [ , pawnSquares ] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces, depth: 1 });
       
       const DIAGONAL_DANGER = new Set([ PIECES.BISHOP, PIECES.QUEEN, PIECES.KING ]);
       const PLUS_DANGER = new Set([ PIECES.ROOK, PIECES.QUEEN, PIECES.KING ]);
@@ -367,6 +409,7 @@ export default class Engine {
       dangerMap[colour] = [ Array.from(plusSquares).some((sIndex) => PLUS_DANGER.has(this.extractPiece(state[sIndex]))),
         Array.from(diagonalSquares).some((sIndex) => DIAGONAL_DANGER.has(this.extractPiece(state[sIndex]))),
         Array.from(knightSqaures).some((sIndex) => PIECES.KNIGHT === this.extractPiece(state[sIndex])),
+        Array.from(pawnSquares).some((sIndex) => PIECES.PAWN === this.extractPiece(state[sIndex])),
       ].some((v) => v);
     }
     return dangerMap;
@@ -519,13 +562,13 @@ export default class Engine {
       });
     }
     
-    if(direction === DIRECTION.PAWN) {
+    if([DIRECTION.PAWN, DIRECTION.B_PAWN, DIRECTION.W_PAWN].includes(direction)) {
       const locationSquare = this.state[squareIndex];
       const colour = this.extractColour(locationSquare);
   
         // not sure if I want to tag "unmoved" pieces,
         // I'll just allow the pawn to move two squares if they're in the 2nd closest row to the players
-        if(colour === PIECES.WHITE) {
+        if(direction === DIRECTION.W_PAWN || colour === PIECES.WHITE) {
           const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_TOP, { depth: 1, collisionPieces: new Set([ ...WHITE_PIECES, PIECES.EMPTY ]) });
           const pieceWColour = this.extractPieceWColourFromLocation(squareIndex + 8);
           if(!ALL_PIECES.has(pieceWColour)) {
@@ -540,7 +583,7 @@ export default class Engine {
           }
           captureSquares[0].forEach((s) => squares.push(s));
           captureSquares[1].forEach((s) => targetOnlySquares.push(s));
-        } else if(colour === PIECES.BLACK) {
+        } else if(direction === DIRECTION.B_PAWN || colour === PIECES.BLACK) {
           const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_BOTTOM, { depth: 1, collisionPieces: new Set([ ...BLACK_PIECES, PIECES.EMPTY ]) });
           const pieceWColour = this.extractPieceWColourFromLocation(squareIndex - 8);
           if(!ALL_PIECES.has(pieceWColour)) {
