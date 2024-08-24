@@ -62,8 +62,6 @@ enum BOARD_MASKS {
 enum GAME_STATE {
   WHITE_TURN = 0b0,
   BLACK_TURN = 0b1,
-  CASTLE = 0b1111_0,
-  ILLEGAL_COUNTER = 0b11_0000_0,
 }
 
 enum GAME_STATE_MASKS {
@@ -96,8 +94,9 @@ const DEFAULT_ORDER = [
   PIECES.ROOK, PIECES.KNIGHT, PIECES.BISHOP, PIECES.QUEEN, PIECES.KING, PIECES.BISHOP, PIECES.KNIGHT, PIECES.ROOK
 ];
 
+
 // white's turn
-const DEFAULT_GAME_STATE = GAME_STATE.WHITE_TURN;
+const DEFAULT_GAME_STATE = GAME_STATE.WHITE_TURN |  GAME_STATE_MASKS.WQ_CASTLE | GAME_STATE_MASKS.WK_CASTLE | GAME_STATE_MASKS.BQ_CASTLE | GAME_STATE_MASKS.BK_CASTLE | GAME_STATE_MASKS.W_ILLEGAL | GAME_STATE_MASKS.B_ILLEGAL;
 // 64 tiles, 65th being the game state
 const DEFAULT_STATE = [
   // white's pieces
@@ -113,6 +112,20 @@ const DEFAULT_STATE = [
   DEFAULT_GAME_STATE,
 ];
 
+const DEFAULT_STATE_FOR_CASTLE_TEST = [
+  // white's pieces
+  ...DEFAULT_ORDER.map((piece) => (piece | PIECES.WHITE)),
+  ...new Array(8).fill(PIECES.EMPTY),
+  // 4 empty rows
+  ...new Array(32).fill(PIECES.EMPTY),
+  // black's pieces
+  ...new Array(8).fill(PIECES.EMPTY),
+  ...DEFAULT_ORDER.map((piece) => piece !== PIECES.ROOK && piece !== PIECES.KING ? PIECES.EMPTY : (piece | PIECES.BLACK)),
+
+  // game state
+  DEFAULT_GAME_STATE,
+];
+
 const COLUMNS = "abcdefgh".split("");
 const SQUARE_INDEX_MAP = Object.fromEntries(COLUMNS.map((col, colIndex) => {
   let row = 0;
@@ -122,9 +135,9 @@ const SQUARE_INDEX_MAP = Object.fromEntries(COLUMNS.map((col, colIndex) => {
     row += 1;
   }
   return returnArr;
-}).flat());
+}).flat()) as Record<string, number>;
 
-const LOCATION_MAP = Object.fromEntries(Object.entries(SQUARE_INDEX_MAP).map(e => e.reverse()));
+const LOCATION_MAP = Object.fromEntries(Object.entries(SQUARE_INDEX_MAP).map(e => e.reverse())) as Record<number, string>;
 
 const CHAR_MAP = {
   [PIECES.EMPTY]: " ",
@@ -155,11 +168,18 @@ const WHITE_PIECES = new Set([PIECES.PAWN, ...DEFAULT_ORDER].map((p) => p | PIEC
 const BLACK_PIECES = new Set([PIECES.PAWN, ...DEFAULT_ORDER].map((p) => p | PIECES.BLACK));
 const ALL_PIECES = new Set([...WHITE_PIECES, ...BLACK_PIECES]);
 
+enum CastleStateOptions {
+  "wkc" = "wkc",
+  "wqc" = "wqc",
+  "bkc" = "bkc",
+  "bqc" = "bqc",
+}
+
 export default class Engine {
   private stateHistory: number[][];
 
   constructor(initialState?: number[]) {
-    this.stateHistory = [initialState ?? DEFAULT_STATE];
+    this.stateHistory = [initialState ?? DEFAULT_STATE_FOR_CASTLE_TEST ?? DEFAULT_STATE];
   }
 
   get state() {
@@ -171,7 +191,17 @@ export default class Engine {
   }
 
   getGameState(state?: number[]) {
-    return (state || this.state).at(-1);
+    const gameStateNumber = (state || this.state).at(-1) ?? 0;
+    
+    return {
+      turn: gameStateNumber & GAME_STATE_MASKS.TURN,
+      whiteIllegalLeft: (gameStateNumber & GAME_STATE_MASKS.W_ILLEGAL) === GAME_STATE_MASKS.W_ILLEGAL,
+      blackIllegalLeft: (gameStateNumber & GAME_STATE_MASKS.B_ILLEGAL) === GAME_STATE_MASKS.B_ILLEGAL,
+      [CastleStateOptions.wkc]: (gameStateNumber & GAME_STATE_MASKS.WK_CASTLE) === GAME_STATE_MASKS.WK_CASTLE,
+      [CastleStateOptions.wqc]: (gameStateNumber & GAME_STATE_MASKS.WQ_CASTLE) === GAME_STATE_MASKS.WQ_CASTLE,
+      [CastleStateOptions.bkc]: (gameStateNumber & GAME_STATE_MASKS.BK_CASTLE) === GAME_STATE_MASKS.BK_CASTLE,
+      [CastleStateOptions.bqc]: (gameStateNumber & GAME_STATE_MASKS.BQ_CASTLE) === GAME_STATE_MASKS.BQ_CASTLE,
+    }
   }
 
   extractPiece(square: number) {
@@ -182,8 +212,9 @@ export default class Engine {
     return square & BOARD_MASKS.COLOUR;
   }
 
-  extractPieceWColourFromLocation(location: number) {
-    const square = this.state[location];
+  extractPieceWColourFromSquareIndex(squareIndex: number, _state?: number[]) {
+    const state = _state || this.state;
+    const square = state[squareIndex];
     return square & BOARD_MASKS.PIECE_W_COLOUR;
   }
 
@@ -240,6 +271,7 @@ export default class Engine {
     console.log(BOARD_COL_ROW);
     console.log(`Mods: 0. ${MODIFIER_COLOR[TILE_MODIFIERS.TRENCH]("TRENCH")}, 1. ${MODIFIER_COLOR[TILE_MODIFIERS.PORTAL]("PORTAL")}, 2. ${MODIFIER_COLOR[TILE_MODIFIERS.ROYALTY_ONLY]("ROYALTY_ONLY")}, 3. ${MODIFIER_COLOR[TILE_MODIFIERS.BISHOP_ONLY]("BISHOP_ONLY")}, 4. ${MODIFIER_COLOR[TILE_MODIFIERS.ROOK_ONLY]("ROOK_ONLY")}`);
 
+    console.log(this.getGameState());
     return this.state.at(-1)?.toString(2);
   }
 
@@ -289,7 +321,8 @@ export default class Engine {
       return false;
     }
 
-    const isWhiteTurn = this.getGameState() === GAME_STATE.WHITE_TURN;
+    const gameState = this.getGameState();
+    const isWhiteTurn = gameState.turn === GAME_STATE.WHITE_TURN;
 
     const fromSquarePieceWColour = this.state[fromSquareIndex] & BOARD_MASKS.PIECE_W_COLOUR;
     const fromPieceColour = fromSquarePieceWColour & BOARD_MASKS.COLOUR;
@@ -307,6 +340,76 @@ export default class Engine {
     const toSquarePieceWColour = this.state[toSquareIndex] & BOARD_MASKS.PIECE_W_COLOUR;
     nextState[toSquareIndex] = toSquarePieceWColour ^ toSquarePieceWColour | fromSquarePieceWColour;
     nextState[fromSquareIndex] = fromSquarePieceWColour ^ fromSquarePieceWColour;
+    
+    if(fromSquarePieceWColour === (PIECES.KING | PIECES.WHITE)) {
+      if(to === "c1") {
+        const rookIndex = SQUARE_INDEX_MAP["a1"];
+        const rookWithColour = this.extractPieceWColourFromSquareIndex(rookIndex);
+        nextState[rookIndex] = rookWithColour ^ rookWithColour;
+        nextState[SQUARE_INDEX_MAP["d1"]] = rookWithColour;
+      }
+      
+      if(to === "g1") {
+        const rookIndex = SQUARE_INDEX_MAP["h1"];
+        const rookWithColour = this.extractPieceWColourFromSquareIndex(rookIndex);
+        nextState[rookIndex] = rookWithColour ^ rookWithColour;
+        nextState[SQUARE_INDEX_MAP["f1"]] = rookWithColour;
+      }
+      
+      this.updateCastleState({
+        wkc: false,
+        wqc: false,
+      }, nextState);
+    }
+    
+    if(fromSquarePieceWColour === (PIECES.KING | PIECES.BLACK)) {
+      if(to === "c8") {
+        const rookIndex = SQUARE_INDEX_MAP["a8"];
+        const rookWithColour = this.extractPieceWColourFromSquareIndex(rookIndex);
+        nextState[rookIndex] = rookWithColour ^ rookWithColour;
+        nextState[SQUARE_INDEX_MAP["d8"]] = rookWithColour;
+      }
+      
+      if(to === "g8") {
+        const rookIndex = SQUARE_INDEX_MAP["h8"];
+        const rookWithColour = this.extractPieceWColourFromSquareIndex(rookIndex);
+        nextState[rookIndex] = rookWithColour ^ rookWithColour;
+        nextState[SQUARE_INDEX_MAP["f8"]] = rookWithColour;
+      }
+      
+      this.updateCastleState({
+        bkc: false,
+        bqc: false,
+      }, nextState);
+    }
+    
+    if(fromSquarePieceWColour === (PIECES.ROOK | PIECES.WHITE)) {
+      if(from === "a1") {
+        this.updateCastleState({
+          wqc: false,
+        }, nextState);
+      }
+      
+      if(from === "h1") {
+        this.updateCastleState({
+          wkc: false,
+        }, nextState);
+      }
+    }
+    
+    if(fromSquarePieceWColour === (PIECES.ROOK | PIECES.BLACK)) {
+      if(from === "a8") {
+        this.updateCastleState({
+          bqc: false,
+        }, nextState);
+      }
+      
+      if(from === "h8") {
+        this.updateCastleState({
+          bkc: false,
+        }, nextState);
+      }
+    }
 
     if (fromSquarePiece === PIECES.PAWN) {
       if (fromPieceColour === PIECES.WHITE) {
@@ -364,24 +467,52 @@ export default class Engine {
       }
     }
 
-    this.mutateWithGameState(nextState);
+    this.switchTurns(nextState);
 
     this.draw();
-
     this.state = nextState;
-
     return true;
   }
 
   undoMove() {
-    this.stateHistory.pop();
+    if(this.stateHistory.length > 1) {
+      this.stateHistory.pop();
+    }
   }
+  
+  updateCastleState(castleState: Partial<Record<CastleStateOptions, boolean>>, _state?: number[]) {
+    const state = _state || this.state;
+    let gameState = state[64];
+    const effectiveMaskMap = {
+      [CastleStateOptions.wkc]: GAME_STATE_MASKS.WK_CASTLE,
+      [CastleStateOptions.wqc]: GAME_STATE_MASKS.WQ_CASTLE,
+      [CastleStateOptions.bkc]: GAME_STATE_MASKS.BK_CASTLE,
+      [CastleStateOptions.bqc]: GAME_STATE_MASKS.BQ_CASTLE,
+    };
 
-  mutateWithGameState(state: number[]) {
-    // change turns
-    const gameState = this.getGameState(state) === GAME_STATE.WHITE_TURN ? GAME_STATE.BLACK_TURN : GAME_STATE.WHITE_TURN;
+    for(const [ key, value ] of Object.entries(castleState)) {
+      const mask = effectiveMaskMap[key as CastleStateOptions];
+      if(mask !== undefined) {
+        const currentValue = gameState & mask;
+        if(currentValue === mask) {
+          gameState = value === true ? gameState | mask : gameState ^ mask;
+        }
+      }
+    }
+    
     state.pop();
     state.push(gameState);
+  }
+
+  switchTurns(_state: number[]) {
+    // change turns
+    const state = _state || this.state;
+    const currentTurn = this.getGameState(state).turn;
+    const nextTurn = currentTurn === GAME_STATE.WHITE_TURN ? GAME_STATE.BLACK_TURN : GAME_STATE.WHITE_TURN;
+    const gameState = state[64];
+    const newGameState = gameState ^ currentTurn | nextTurn;
+    state.pop();
+    state.push(newGameState);
   }
 
   checkKingInDanger(_state: number[]) {
@@ -397,22 +528,30 @@ export default class Engine {
       const colour = this.extractColour(square);
       const location = LOCATION_MAP[squareIndex];
       const collisionPieces = colour === PIECES.WHITE ? WHITE_PIECES : BLACK_PIECES;
-      const pawnDirection = colour === PIECES.WHITE ? DIRECTION.B_PAWN : DIRECTION.W_PAWN;
-      const [, plusSquares] = this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces });
-      const [, diagonalSquares] = this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces });
-      const [, knightSqaures] = this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces });
-      const [, pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces, depth: 1 });
+      dangerMap[colour] = this.checkSquareInDanger(location, colour, collisionPieces, state);
+    }
+    return dangerMap;
+  }
+  
+  checkSquareInDanger(location: string, colour: number, collisionPieces: Set<number>, _state?: number[]) {
+    const state = _state || this.state;
+    const pawnDirection = colour === PIECES.WHITE ? DIRECTION.B_PAWN : DIRECTION.W_PAWN;
+    const [, plusSquares] = this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces: collisionPieces });
+    const [, diagonalSquares] = this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces: collisionPieces });
+    const [, knightSqaures] = this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces: collisionPieces });
+    const [, pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces: collisionPieces, depth: 1 });
+    const [, kingSquares] = this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces: new Set([ PIECES.KING | colour ]), depth: 1 });
 
-      const DIAGONAL_DANGER = new Set([PIECES.BISHOP, PIECES.QUEEN, PIECES.KING]);
-      const PLUS_DANGER = new Set([PIECES.ROOK, PIECES.QUEEN, PIECES.KING]);
+    const DIAGONAL_DANGER = new Set([PIECES.BISHOP, PIECES.QUEEN]);
+    const PLUS_DANGER = new Set([PIECES.ROOK, PIECES.QUEEN]);
 
-      dangerMap[colour] = [Array.from(plusSquares).some((sIndex) => PLUS_DANGER.has(this.extractPiece(state[sIndex]))),
+    const returnVal = [Array.from(plusSquares).some((sIndex) => PLUS_DANGER.has(this.extractPiece(state[sIndex]))),
       Array.from(diagonalSquares).some((sIndex) => DIAGONAL_DANGER.has(this.extractPiece(state[sIndex]))),
       Array.from(knightSqaures).some((sIndex) => PIECES.KNIGHT === this.extractPiece(state[sIndex])),
       Array.from(pawnSquares).some((sIndex) => PIECES.PAWN === this.extractPiece(state[sIndex])),
-      ].some((v) => v);
-    }
-    return dangerMap;
+      Array.from(kingSquares).some((sIndex) => PIECES.KING === this.extractPiece(state[sIndex])),
+    ].some((v) => v);
+    return returnVal;
   }
 
   addModifier(location: string, modifier: string | number) {
@@ -433,11 +572,11 @@ export default class Engine {
     let currentLocation = start + directionMod;
     while (currentLocation >= 0 && currentLocation < 64 && depth--) {
       const prevLocation = currentLocation - directionMod;
-      if (boundary.has(currentLocation) && boundary.has(prevLocation)) {
+      if (boundary.has(currentLocation) && boundary.has(prevLocation) && prevLocation !== start) {
         break;
       }
 
-      const pieceWColour = this.extractPieceWColourFromLocation(currentLocation);
+      const pieceWColour = this.extractPieceWColourFromSquareIndex(currentLocation);
       if (!collisionPieces?.has(pieceWColour)) {
         squares.push(currentLocation);
 
@@ -510,7 +649,7 @@ export default class Engine {
         if (plusDirWithinBoundary[0].has(beSquare)) {
           if (!leftWall.has(beSquare)) {
             const finalIndex = beSquare - 1;
-            const pieceWColour = this.extractPieceWColourFromLocation(finalIndex);
+            const pieceWColour = this.extractPieceWColourFromSquareIndex(finalIndex);
             if (!collisionPieces?.has(pieceWColour)) {
               squares.push(finalIndex);
 
@@ -521,7 +660,7 @@ export default class Engine {
           }
           if (!rightWall.has(beSquare)) {
             const finalIndex = beSquare + 1;
-            const pieceWColour = this.extractPieceWColourFromLocation(finalIndex);
+            const pieceWColour = this.extractPieceWColourFromSquareIndex(finalIndex);
             if (!collisionPieces?.has(pieceWColour)) {
               squares.push(finalIndex);
 
@@ -538,7 +677,7 @@ export default class Engine {
         if (plusDirWithinBoundary[0].has(beSquare)) {
           if (!bottomWall.has(beSquare)) {
             const finalIndex = beSquare - 8;
-            const pieceWColour = this.extractPieceWColourFromLocation(finalIndex);
+            const pieceWColour = this.extractPieceWColourFromSquareIndex(finalIndex);
             if (!collisionPieces?.has(pieceWColour)) {
               squares.push(finalIndex);
 
@@ -549,7 +688,7 @@ export default class Engine {
           }
           if (!topWall.has(beSquare)) {
             const finalIndex = beSquare + 8;
-            const pieceWColour = this.extractPieceWColourFromLocation(finalIndex);
+            const pieceWColour = this.extractPieceWColourFromSquareIndex(finalIndex);
             if (!collisionPieces?.has(pieceWColour)) {
               squares.push(finalIndex);
 
@@ -570,12 +709,12 @@ export default class Engine {
       // I'll just allow the pawn to move two squares if they're in the 2nd closest row to the players
       if (direction === DIRECTION.W_PAWN || colour === PIECES.WHITE) {
         const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_TOP, { depth: 1, collisionPieces: new Set([...WHITE_PIECES, PIECES.EMPTY]) });
-        const pieceWColour = this.extractPieceWColourFromLocation(squareIndex + 8);
+        const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex + 8);
         if (!ALL_PIECES.has(pieceWColour)) {
           squares.push(squareIndex + 8);
 
           if (squareIndex >= 8 && squareIndex <= 15) {
-            const pieceWColour = this.extractPieceWColourFromLocation(squareIndex + 16);
+            const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex + 16);
             if (!ALL_PIECES.has(pieceWColour)) {
               squares.push(squareIndex + 16);
             }
@@ -585,12 +724,12 @@ export default class Engine {
         captureSquares[1].forEach((s) => targetOnlySquares.push(s));
       } else if (direction === DIRECTION.B_PAWN || colour === PIECES.BLACK) {
         const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_BOTTOM, { depth: 1, collisionPieces: new Set([...BLACK_PIECES, PIECES.EMPTY]) });
-        const pieceWColour = this.extractPieceWColourFromLocation(squareIndex - 8);
+        const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex - 8);
         if (!ALL_PIECES.has(pieceWColour)) {
           squares.push(squareIndex - 8);
 
           if (squareIndex >= 48 && squareIndex <= 55) {
-            const pieceWColour = this.extractPieceWColourFromLocation(squareIndex - 16);
+            const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex - 16);
             if (!ALL_PIECES.has(pieceWColour)) {
               squares.push(squareIndex - 16);
             }
@@ -621,7 +760,10 @@ export default class Engine {
     }
 
     if (currentPiece === PIECES.KING) {
-      return this.getSquaresInDirection(location, DIRECTION.ALL, { depth: 1, collisionPieces });
+      const [ reqularSquares, targetOnlySquares ] = this.getSquaresInDirection(location, DIRECTION.ALL, { depth: 1, collisionPieces });
+      const castleSquares = this.getCastleSquares(colour);
+      
+      return [ new Set([ ...reqularSquares, ...castleSquares ]), targetOnlySquares ];
     }
 
     if (currentPiece === PIECES.BISHOP) {
@@ -637,5 +779,56 @@ export default class Engine {
     }
 
     return [new Set<number>(), new Set<number>()];
+  }
+
+  getCastleSquares(colour: number, _state?: number[]) {
+    const state = _state || this.state;
+    const gameState = this.getGameState(state);
+    const castleSquares = new Set<number>();
+    if(colour === PIECES.WHITE) {
+      const collisionPieces = WHITE_PIECES;
+      if(gameState.wkc) {
+        const squareLocationsToCheck = [ "e1", "f1", "g1" ];
+        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, state))) {
+          const squareIndex = SQUARE_INDEX_MAP["g1"];
+          if(this.extractPiece(state[squareIndex]) === PIECES.EMPTY) {
+            castleSquares.add(squareIndex);
+          }
+        }
+      }
+      if(gameState.wqc) {
+        const squareLocationsToCheck = [ "e1", "d1", "c1" ];
+        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, state))) {
+          const squareIndex = SQUARE_INDEX_MAP["c1"];
+          if(this.extractPiece(state[squareIndex]) === PIECES.EMPTY) {
+            castleSquares.add(squareIndex);
+          }
+        }
+      }
+    }
+    
+    if(colour === PIECES.BLACK) {
+      const collisionPieces = BLACK_PIECES;
+      if(gameState.bkc) {
+        const squareLocationsToCheck = [ "e8", "f8", "g8" ];
+        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, state))) {
+          const squareIndex = SQUARE_INDEX_MAP["g8"];
+          if(this.extractPiece(state[squareIndex]) === PIECES.EMPTY) {
+            castleSquares.add(squareIndex);
+          }
+        }
+      }
+      if(gameState.bqc) {
+        const squareLocationsToCheck = [ "e8", "d8", "c8" ];
+        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, state))) {
+          const squareIndex = SQUARE_INDEX_MAP["c8"];
+          if(this.extractPiece(state[squareIndex]) === PIECES.EMPTY) {
+            castleSquares.add(squareIndex);
+          }
+        }
+      }
+    }
+    
+    return castleSquares;
   }
 }
