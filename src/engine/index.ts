@@ -66,12 +66,13 @@ enum GAME_STATE {
 
 enum GAME_STATE_MASKS {
   TURN = 0b1,
-  W_ILLEGAL = 0b01_0000_0,
-  B_ILLEGAL = 0b10_0000_0,
   BQ_CASTLE = 0b0001_0,
   BK_CASTLE = 0b0010_0,
   WQ_CASTLE = 0b0100_0,
   WK_CASTLE = 0b1000_0,
+  W_ILLEGAL = 0b01_0000_0,
+  B_ILLEGAL = 0b10_0000_0,
+  PROMOTION = 0b1_00_0000_0,
 }
 
 const MODIFIER_INDEX = {
@@ -112,7 +113,7 @@ const DEFAULT_STATE = [
   DEFAULT_GAME_STATE,
 ];
 
-const DEFAULT_STATE_FOR_CASTLE_TEST = [
+const STATE_FOR_CASTLE_TEST = [
   // white's pieces
   ...DEFAULT_ORDER.map((piece) => (piece | PIECES.WHITE)),
   ...new Array(8).fill(PIECES.EMPTY),
@@ -121,6 +122,20 @@ const DEFAULT_STATE_FOR_CASTLE_TEST = [
   // black's pieces
   ...new Array(8).fill(PIECES.EMPTY),
   ...DEFAULT_ORDER.map((piece) => piece !== PIECES.ROOK && piece !== PIECES.KING ? PIECES.EMPTY : (piece | PIECES.BLACK)),
+
+  // game state
+  DEFAULT_GAME_STATE,
+];
+
+const STATE_FOR_PROMOTION_TEST = [
+  // white's pieces
+  ...new Array(8).fill(PIECES.EMPTY),
+  ...new Array(8).fill(PIECES.PAWN | PIECES.BLACK),
+  // 4 empty rows
+  ...new Array(32).fill(PIECES.EMPTY),
+  // black's pieces
+  ...new Array(8).fill(PIECES.PAWN | PIECES.WHITE),
+  ...new Array(8).fill(PIECES.EMPTY),
 
   // game state
   DEFAULT_GAME_STATE,
@@ -149,6 +164,7 @@ const CHAR_MAP = {
   [PIECES.KING]: "k",
   [PIECES.EN_PASSANT]: "e",
 } as Record<number, string>;
+const CHAR_TO_PIECES_MAP = Object.fromEntries(Object.entries(CHAR_MAP).map(e => e.reverse())) as Record<string, number>;
 const BOARD_COL_ROW = `    ${"abcdefgh".split("").join(" ")}`;
 const BOARD_BORDER_ROW = `  +-----------------+`;
 
@@ -179,7 +195,7 @@ export default class Engine {
   private stateHistory: number[][];
 
   constructor(initialState?: number[]) {
-    this.stateHistory = [initialState ?? DEFAULT_STATE_FOR_CASTLE_TEST ?? DEFAULT_STATE];
+    this.stateHistory = [initialState ?? STATE_FOR_PROMOTION_TEST ?? DEFAULT_STATE ?? STATE_FOR_CASTLE_TEST];
   }
 
   get state() {
@@ -195,6 +211,7 @@ export default class Engine {
     
     return {
       turn: gameStateNumber & GAME_STATE_MASKS.TURN,
+      // promotionWaiting: (gameStateNumber & GAME_STATE_MASKS.PROMOTION) === GAME_STATE_MASKS.PROMOTION,
       whiteIllegalLeft: (gameStateNumber & GAME_STATE_MASKS.W_ILLEGAL) === GAME_STATE_MASKS.W_ILLEGAL,
       blackIllegalLeft: (gameStateNumber & GAME_STATE_MASKS.B_ILLEGAL) === GAME_STATE_MASKS.B_ILLEGAL,
       [CastleStateOptions.wkc]: (gameStateNumber & GAME_STATE_MASKS.WK_CASTLE) === GAME_STATE_MASKS.WK_CASTLE,
@@ -202,6 +219,15 @@ export default class Engine {
       [CastleStateOptions.bkc]: (gameStateNumber & GAME_STATE_MASKS.BK_CASTLE) === GAME_STATE_MASKS.BK_CASTLE,
       [CastleStateOptions.bqc]: (gameStateNumber & GAME_STATE_MASKS.BQ_CASTLE) === GAME_STATE_MASKS.BQ_CASTLE,
     }
+  }
+  
+  getCurrentTurn(state?: number[]) {
+    const gameStateNumber = (state || this.state).at(-1) ?? 0;
+    const turn = gameStateNumber & GAME_STATE_MASKS.TURN;
+    if(turn === GAME_STATE.WHITE_TURN) {
+      return "white";
+    }
+    return "black";
   }
 
   extractPiece(square: number) {
@@ -313,7 +339,7 @@ export default class Engine {
   // current objective is to get this in a state where I can just write actual gameplay logic with a barebones ui
   move(notation: string) {
     let nextState = [...this.state];
-    const [from, to] = notation.split(" ");
+    const [from, to, promotionPiece] = notation.split(" ");
     const fromSquareIndex = SQUARE_INDEX_MAP[from];
     const toSquareIndex = SQUARE_INDEX_MAP[to];
 
@@ -340,7 +366,28 @@ export default class Engine {
     const toSquarePieceWColour = this.state[toSquareIndex] & BOARD_MASKS.PIECE_W_COLOUR;
     nextState[toSquareIndex] = toSquarePieceWColour ^ toSquarePieceWColour | fromSquarePieceWColour;
     nextState[fromSquareIndex] = fromSquarePieceWColour ^ fromSquarePieceWColour;
-    
+
+    const WHITE_PROMOTION_ROW = "abcdefgh".split("").map((col) => `${col}8`);
+    const BLACK_PROMOTION_ROW = "abcdefgh".split("").map((col) => `${col}1`);
+    if(fromSquarePieceWColour === (PIECES.PAWN | PIECES.WHITE) && WHITE_PROMOTION_ROW.includes(to)) {
+      if(!promotionPiece) {
+        console.log("need to send promotion piece");
+        return false;
+      }
+
+      const piece = CHAR_TO_PIECES_MAP[promotionPiece];
+      nextState[toSquareIndex] = (PIECES.PAWN | PIECES.WHITE) ^ (PIECES.PAWN | PIECES.WHITE) | (piece | PIECES.WHITE);
+    }
+    if(fromSquarePieceWColour === (PIECES.PAWN | PIECES.BLACK) && BLACK_PROMOTION_ROW.includes(to)) {
+      if(!promotionPiece) {
+        console.log("need to send promotion piece");
+        return false;
+      }
+
+      const piece = CHAR_TO_PIECES_MAP[promotionPiece];
+      nextState[toSquareIndex] = (PIECES.PAWN | PIECES.BLACK) ^ (PIECES.PAWN | PIECES.BLACK) | (piece | PIECES.BLACK);
+    }
+
     if(fromSquarePieceWColour === (PIECES.KING | PIECES.WHITE)) {
       if(to === "c1") {
         const rookIndex = SQUARE_INDEX_MAP["a1"];
