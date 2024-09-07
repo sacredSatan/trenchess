@@ -8,7 +8,7 @@ const engine = new Engine();
 
 function App() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [ position, setPosition ] = useState(engine.getPositions());
+  const [ [ position, moveState ], setPosition ] = useState(engine.getPositions());
   const [ isHost, setIsHost ] = useState(false);
   const [ loading, setLoading ] = useState(false);
   const [ peerId, setPeerId ] = useState<string>();
@@ -19,7 +19,7 @@ function App() {
       const connection = getDataConnection();
       if(connection) {
         connection.on("data", (move) => {
-          if(engine.move(move as string)) {
+          if(engine.move(move as string) > 1) {
             setPosition(engine.getPositions());
           }
         });
@@ -55,6 +55,7 @@ function App() {
   return (
     <>
       <h6>ID: {peerId?.replaceAll(PEER_ID_PREFIX, "")}</h6>
+      <h6>LAST MOVE STATE: {moveState}</h6>
       <button type="button" onClick={(() => { engine.undoMove(); setPosition(engine.getPositions()) })}>undo move</button>
       <Board isWhite={!isHost} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
     </>

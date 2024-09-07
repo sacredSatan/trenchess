@@ -141,6 +141,16 @@ const STATE_FOR_PROMOTION_TEST = [
   DEFAULT_GAME_STATE,
 ];
 
+const STATE_FOR_STALEMATE_TEST = [
+    PIECES.KING | PIECES.BLACK, ...new Array(7).fill(PIECES.EMPTY),
+    ...new Array(16).fill(PIECES.EMPTY),
+    PIECES.EMPTY, PIECES.EMPTY, PIECES.QUEEN | PIECES.WHITE, ...new Array(5).fill(PIECES.EMPTY),
+    ...new Array(32).fill(PIECES.EMPTY),
+  
+    // game state
+    DEFAULT_GAME_STATE,
+];
+
 const COLUMNS = "abcdefgh".split("");
 const SQUARE_INDEX_MAP = Object.fromEntries(COLUMNS.map((col, colIndex) => {
   let row = 0;
@@ -191,11 +201,33 @@ enum CastleStateOptions {
   "bqc" = "bqc",
 }
 
+export enum MOVE_RETURN_VALUES {
+  INVALID,
+  ILLEGAL,
+  STALEMATE,
+  CHECKMATE,
+  REPEATDRAW,
+  MOVE,
+}
+
+const MOVE_RETURN_VALUES_MAP = {
+  [MOVE_RETURN_VALUES.INVALID]: "INVALID",
+  [MOVE_RETURN_VALUES.ILLEGAL]: "ILLEGAL",
+  [MOVE_RETURN_VALUES.STALEMATE]: "STALEMATE",
+  [MOVE_RETURN_VALUES.CHECKMATE]: "CHECKMATE",
+  [MOVE_RETURN_VALUES.REPEATDRAW]: "REPEATDRAW",
+  [MOVE_RETURN_VALUES.MOVE]: "MOVE",
+}
+
 export default class Engine {
   private stateHistory: number[][];
+  private positionCountMap: Map<string, number>;
+  private lastMoveState: string;
 
   constructor(initialState?: number[]) {
-    this.stateHistory = [initialState ?? STATE_FOR_PROMOTION_TEST ?? DEFAULT_STATE ?? STATE_FOR_CASTLE_TEST];
+    this.stateHistory = [initialState ?? DEFAULT_STATE ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
+    this.positionCountMap = new Map();
+    this.lastMoveState = MOVE_RETURN_VALUES_MAP[MOVE_RETURN_VALUES.MOVE];
   }
 
   get state() {
@@ -302,7 +334,7 @@ export default class Engine {
   }
 
   getPositions() {
-    return Object.fromEntries(this.state.map((square, index) => {
+    return [ Object.fromEntries(this.state.map((square, index) => {
       if (index > 63) {
         return;
       }
@@ -315,7 +347,7 @@ export default class Engine {
       }
 
       return [this.indexToPosition(index), `${pieceChar}`]
-    }).filter((a) => !!a));
+    }).filter((a) => !!a)), this.lastMoveState ]
   }
 
   getPositionsForJsx() {
@@ -335,32 +367,43 @@ export default class Engine {
     }).filter((a) => !!a));
   }
 
+  move(notation: string, options?: { skipCommit: boolean; state?: number[]; skipCheckMate?: boolean; skipStaleMate?: boolean; }): MOVE_RETURN_VALUES {
+    const lastMoveReturnValue = this._move(notation, options);
+    if(!options?.skipCommit) {
+      this.lastMoveState = MOVE_RETURN_VALUES_MAP[lastMoveReturnValue];
+    }
+    return lastMoveReturnValue;
+  }
+  
   // I don't want to spend time implementing actual algebraic notation parsing right now (eventually will have to, when I want to support castles etc I guess)
   // current objective is to get this in a state where I can just write actual gameplay logic with a barebones ui
-  move(notation: string) {
-    let nextState = [...this.state];
+  _move(notation: string, options?: { skipCommit: boolean; state?: number[]; skipCheckMate?: boolean; skipStaleMate?: boolean; }): MOVE_RETURN_VALUES {
+    // debugger;
+    const { skipCommit, skipCheckMate, skipStaleMate, state: _state } = options ?? {};
+    const state = _state || this.state;
+    let nextState = [...state];
     const [from, to, promotionPiece] = notation.split(" ");
     const fromSquareIndex = SQUARE_INDEX_MAP[from];
     const toSquareIndex = SQUARE_INDEX_MAP[to];
 
     if (fromSquareIndex === toSquareIndex) {
-      return false;
+      return MOVE_RETURN_VALUES.INVALID;
     }
 
-    const gameState = this.getGameState();
-    const isWhiteTurn = gameState.turn === GAME_STATE.WHITE_TURN;
+    const gameState = this.getGameState(state);
+    const isInitiallyWhiteTurn = gameState.turn === GAME_STATE.WHITE_TURN;
 
-    const fromSquarePieceWColour = this.state[fromSquareIndex] & BOARD_MASKS.PIECE_W_COLOUR;
+    const fromSquarePieceWColour = state[fromSquareIndex] & BOARD_MASKS.PIECE_W_COLOUR;
     const fromPieceColour = fromSquarePieceWColour & BOARD_MASKS.COLOUR;
     const fromSquarePiece = fromSquarePieceWColour & BOARD_MASKS.PIECES;
-    if ((fromPieceColour === PIECES.WHITE && !isWhiteTurn) ||
-      fromPieceColour === PIECES.BLACK && isWhiteTurn) {
-      return false;
+    if ((fromPieceColour === PIECES.WHITE && !isInitiallyWhiteTurn) ||
+      fromPieceColour === PIECES.BLACK && isInitiallyWhiteTurn) {
+      return MOVE_RETURN_VALUES.INVALID;
     }
 
-    const [movableSquares] = this.getMovableSquares(from);
+    const [movableSquares] = this.getMovableSquares(from, state);
     if (!movableSquares.has(toSquareIndex)) {
-      return false;
+      return MOVE_RETURN_VALUES.INVALID;
     }
 
     const toSquarePieceWColour = this.state[toSquareIndex] & BOARD_MASKS.PIECE_W_COLOUR;
@@ -372,7 +415,7 @@ export default class Engine {
     if(fromSquarePieceWColour === (PIECES.PAWN | PIECES.WHITE) && WHITE_PROMOTION_ROW.includes(to)) {
       if(!promotionPiece) {
         console.log("need to send promotion piece");
-        return false;
+        return MOVE_RETURN_VALUES.INVALID;
       }
 
       const piece = CHAR_TO_PIECES_MAP[promotionPiece];
@@ -381,7 +424,7 @@ export default class Engine {
     if(fromSquarePieceWColour === (PIECES.PAWN | PIECES.BLACK) && BLACK_PROMOTION_ROW.includes(to)) {
       if(!promotionPiece) {
         console.log("need to send promotion piece");
-        return false;
+        return MOVE_RETURN_VALUES.INVALID;
       }
 
       const piece = CHAR_TO_PIECES_MAP[promotionPiece];
@@ -491,39 +534,92 @@ export default class Engine {
         }
       }
     }
-    this.state = nextState;
+
+    this.switchTurns(nextState);
 
     const kingInDanger = this.checkKingInDanger(nextState);
+    console.log(kingInDanger);
     if (kingInDanger[PIECES.WHITE]) {
-      if (isWhiteTurn) {
+      // switched turns above
+      if (isInitiallyWhiteTurn) {
         console.log("TIS ILLEGAL");
-        this.undoMove();
-        return false;
+        return MOVE_RETURN_VALUES.ILLEGAL;
       } else {
         console.log("CHECK!");
+        if(!skipCheckMate && this.checkMate(PIECES.WHITE, nextState)) {
+          console.log("CHECKMATE!!");
+          if(!skipCommit) {
+            this.state = nextState;
+          }
+          return MOVE_RETURN_VALUES.CHECKMATE;
+        }
       }
     }
 
     if (kingInDanger[PIECES.BLACK]) {
-      if (!isWhiteTurn) {
+      // switched turns above
+      if (!isInitiallyWhiteTurn) {
         console.log("TIS ILLEGAL");
-        this.undoMove();
-        return false;
+        return MOVE_RETURN_VALUES.ILLEGAL;
       } else {
         console.log("CHECK!");
+        if(!skipCheckMate && this.checkMate(PIECES.BLACK, nextState)) {
+          console.log("CHECKMATE!!");
+          if(!skipCommit) {
+            this.state = nextState;
+          }
+          return MOVE_RETURN_VALUES.CHECKMATE;
+        }
       }
     }
 
-    this.switchTurns(nextState);
+    // stalemate
+    if(!skipStaleMate && this.checkStaleMate(nextState)) {
+      console.log("STALEMATE");
+      if(!skipCommit) {
+        this.state = nextState
+      }
+      return MOVE_RETURN_VALUES.STALEMATE;
+    }
 
+    // repeat draw
+    const positionStr = nextState.slice(0, -1).join();
+    if(this.positionCountMap.get(positionStr) === 2) {
+      console.log("REPEAT DRAW");
+      
+      if(!skipCommit) {
+        this.state = nextState
+      }
+      return MOVE_RETURN_VALUES.REPEATDRAW;
+    } else {
+      const currentCount = this.positionCountMap.get(positionStr) ?? 0;
+      if(!skipCommit) {
+        this.positionCountMap.set(positionStr, currentCount + 1);
+      }
+    }
+  
     this.draw();
-    this.state = nextState;
-    return true;
+
+    if(!skipCommit) {
+      this.state = nextState;
+      console.log(this.state, "STATE");
+    }
+    return MOVE_RETURN_VALUES.MOVE;
   }
 
   undoMove() {
     if(this.stateHistory.length > 1) {
-      this.stateHistory.pop();
+      console.log("UNDO MOVE", this.stateHistory.length);
+      const removedHistory = this.stateHistory.pop() ?? [];
+      // repeat draw
+      const positionStr = removedHistory.slice(0, -1).join();
+      const currentCount = this.positionCountMap.get(positionStr);
+      if(!currentCount) {
+        console.log("SOMETHING's WRONG, position not mapped but present in history");
+      } else {
+        this.positionCountMap.set(positionStr, currentCount - 1);
+      }
+      console.log("UNDO MOVE DONE", this.stateHistory.length);
     }
   }
   
@@ -561,16 +657,73 @@ export default class Engine {
     state.pop();
     state.push(newGameState);
   }
-
-  checkKingInDanger(_state: number[]) {
+  
+  checkStaleMate(_state: number[]) {
+    // debugger;
     const state = _state || this.state;
-    const kingSquares = state.map((square, index) => {
-      const piece = this.extractPiece(square);
-      return piece === PIECES.KING ? index : undefined;
-    }).filter(Boolean) as number[];
+    const currentTurn = this.getGameState(state).turn;
+    const colour = currentTurn === GAME_STATE.WHITE_TURN ? PIECES.WHITE : PIECES.BLACK;
+    const boardSquares = state.slice(0, -1);
+    const colouredPiecesPositions = boardSquares.map((square, index) => {
+      if(this.extractColour(square) === colour) {
+        return this.indexToPosition(index);
+      }
+    }).filter(Boolean) as string[];
+    
+    return !colouredPiecesPositions.some((position) => {
+      const [ movableSquares ] = this.getMovableSquares(position, state);
+      
+      return Array.from(movableSquares).some((squareIndex) => {
+        const moveStr = `${position} ${this.indexToPosition(squareIndex)}`;
+        return this.move(moveStr, { skipCommit: true, skipStaleMate: true, skipCheckMate: true, state }) === MOVE_RETURN_VALUES.MOVE;
+      });
+    });
+  }
+
+  checkMate(colour: PIECES.WHITE | PIECES.BLACK, _state?: number[]) {
+    debugger;
+    const state = _state || this.state;
+    const boardSquares = state.slice(0, -1);
+
+    const colouredPiecesPositions = boardSquares.map((square, index) => {
+      if(this.extractColour(square) === colour) {
+        return this.indexToPosition(index);
+      }
+    }).filter(Boolean) as string[];
+    
+    return !colouredPiecesPositions.some((position) => {
+      const [ movableSquares ] = this.getMovableSquares(position, state);
+
+      return Array.from(movableSquares).some((squareIndex) => {
+        const moveStr = `${position} ${this.indexToPosition(squareIndex)}`;
+        return this.move(moveStr, { skipCommit: true, skipStaleMate: true, skipCheckMate: true, state }) === MOVE_RETURN_VALUES.MOVE;
+      });
+    });
+  }
+
+  getKingSquareIndexMap(_state: number[]) {
+    const state = _state || this.state;
+    const kingIndexMap = {[PIECES.WHITE]: -1, [PIECES.BLACK]: -1};
+    state.forEach((_, index) => {
+      const piece = this.extractPieceWColourFromSquareIndex(index, state);
+      if(piece === (PIECES.KING | PIECES.WHITE)) {
+        kingIndexMap[PIECES.WHITE] = index;
+      }
+      if(piece === (PIECES.KING | PIECES.BLACK)) {
+        kingIndexMap[PIECES.BLACK] = index;
+      }
+    });
+    
+    return kingIndexMap;
+  }
+  
+  checkKingInDanger(_state: number[]) {
+    // debugger;
+    const state = _state || this.state;
+    const kingSquareIndices = Object.values(this.getKingSquareIndexMap(state));
 
     const dangerMap: Record<number, boolean> = {};
-    for (const squareIndex of kingSquares) {
+    for (const squareIndex of kingSquareIndices) {
       const square = state[squareIndex];
       const colour = this.extractColour(square);
       const location = LOCATION_MAP[squareIndex];
@@ -580,25 +733,30 @@ export default class Engine {
     return dangerMap;
   }
   
-  checkSquareInDanger(location: string, colour: number, collisionPieces: Set<number>, _state?: number[]) {
+  getAttackingTargetSquares(location: string, colour: number, collisionPieces: Set<number>, _state?: number[]) {
     const state = _state || this.state;
     const pawnDirection = colour === PIECES.WHITE ? DIRECTION.B_PAWN : DIRECTION.W_PAWN;
-    const [, plusSquares] = this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces: collisionPieces });
-    const [, diagonalSquares] = this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces: collisionPieces });
-    const [, knightSqaures] = this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces: collisionPieces });
-    const [, pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces: collisionPieces, depth: 1 });
-    const [, kingSquares] = this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces: new Set([ PIECES.KING | colour ]), depth: 1 });
+    const [, plusSquares] = this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces: collisionPieces, state });
+    const [, diagonalSquares] = this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces: collisionPieces, state });
+    const [, knightSqaures] = this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces: collisionPieces, state });
+    const [, pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces: collisionPieces, state, depth: 1 });
+    const [, kingSquares] = this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces: new Set([ PIECES.KING | colour ]), state, depth: 1 });
 
     const DIAGONAL_DANGER = new Set([PIECES.BISHOP, PIECES.QUEEN]);
     const PLUS_DANGER = new Set([PIECES.ROOK, PIECES.QUEEN]);
 
-    const returnVal = [Array.from(plusSquares).some((sIndex) => PLUS_DANGER.has(this.extractPiece(state[sIndex]))),
-      Array.from(diagonalSquares).some((sIndex) => DIAGONAL_DANGER.has(this.extractPiece(state[sIndex]))),
-      Array.from(knightSqaures).some((sIndex) => PIECES.KNIGHT === this.extractPiece(state[sIndex])),
-      Array.from(pawnSquares).some((sIndex) => PIECES.PAWN === this.extractPiece(state[sIndex])),
-      Array.from(kingSquares).some((sIndex) => PIECES.KING === this.extractPiece(state[sIndex])),
-    ].some((v) => v);
-    return returnVal;
+    return Object.fromEntries([
+      ["plus", new Set(Array.from(plusSquares).filter((sIndex) => PLUS_DANGER.has(this.extractPiece(state[sIndex]))))],
+      ["diagonal", new Set(Array.from(diagonalSquares).filter((sIndex) => DIAGONAL_DANGER.has(this.extractPiece(state[sIndex]))))],
+      ["knight", new Set(Array.from(knightSqaures).filter((sIndex) => PIECES.KNIGHT === this.extractPiece(state[sIndex])))],
+      ["pawn", new Set(Array.from(pawnSquares).filter((sIndex) => PIECES.PAWN === this.extractPiece(state[sIndex])))],
+      ["king", new Set(Array.from(kingSquares).filter((sIndex) => PIECES.KING === this.extractPiece(state[sIndex])))]
+    ]);
+  }
+  
+  checkSquareInDanger(location: string, colour: number, collisionPieces: Set<number>, _state?: number[]) {
+    const squares = this.getAttackingTargetSquares(location, colour, collisionPieces, _state);
+    return Object.values(squares).some((v) => v.size > 0);
   }
 
   addModifier(location: string, modifier: string | number) {
@@ -610,8 +768,8 @@ export default class Engine {
     return this.draw();
   }
 
-  getSquaresWithinBoundary(start: number, directionMod: number, boundary: Set<number>, options: { depth?: number; collisionPieces?: Set<number>; }) {
-    const { depth: _depth = 8, collisionPieces } = options;
+  getSquaresWithinBoundary(start: number, directionMod: number, boundary: Set<number>, options: { depth?: number; collisionPieces?: Set<number>; state?: number[] }) {
+    const { depth: _depth = 8, collisionPieces, state } = options;
     const targetPieces = collisionPieces ? ALL_PIECES.difference(collisionPieces) : null;
     let depth = _depth;
     const squares = [];
@@ -623,7 +781,7 @@ export default class Engine {
         break;
       }
 
-      const pieceWColour = this.extractPieceWColourFromSquareIndex(currentLocation);
+      const pieceWColour = this.extractPieceWColourFromSquareIndex(currentLocation, state);
       if (!collisionPieces?.has(pieceWColour)) {
         squares.push(currentLocation);
 
@@ -641,8 +799,9 @@ export default class Engine {
     return [squares, targetOnlySquares];
   }
 
-  getSquaresInDirection(location: string, direction: DIRECTION, options: { depth?: number; collisionPieces?: Set<number>; }) {
-    const { collisionPieces } = options;
+  getSquaresInDirection(location: string, direction: DIRECTION, options: { depth?: number; collisionPieces?: Set<number>; state?: number[] }) {
+    const { collisionPieces, state: _state } = options;
+    const state = _state || this.state;
     const squareIndex = SQUARE_INDEX_MAP[location];
     const leftWall = new Set([0, 8, 16, 24, 32, 40, 48, 56]);
     const rightWall = new Set([7, 15, 23, 31, 39, 47, 55, 63]);
@@ -655,26 +814,26 @@ export default class Engine {
     const squares: Array<number[] | number> = [];
     const targetOnlySquares: Array<number[] | number> = [];
     if (direction === DIRECTION.PLUS || direction === DIRECTION.ALL) {
-      const left = this.getSquaresWithinBoundary(squareIndex, -1, verticalBoundary, options);
-      const right = this.getSquaresWithinBoundary(squareIndex, 1, verticalBoundary, options);
-      const up = this.getSquaresWithinBoundary(squareIndex, +8, horizontalBoundary, options);
-      const down = this.getSquaresWithinBoundary(squareIndex, -8, horizontalBoundary, options);
+      const left = !leftWall.has(squareIndex) ? this.getSquaresWithinBoundary(squareIndex, -1, verticalBoundary, options) : [];
+      const right = !rightWall.has(squareIndex) ? this.getSquaresWithinBoundary(squareIndex, 1, verticalBoundary, options) : [];
+      const up = !topWall.has(squareIndex) ? this.getSquaresWithinBoundary(squareIndex, +8, horizontalBoundary, options) : [];
+      const down = !bottomWall.has(squareIndex) ? this.getSquaresWithinBoundary(squareIndex, -8, horizontalBoundary, options) : [];
       squares.push(left[0], right[0], up[0], down[0]);
       targetOnlySquares.push(left[1], right[1], up[1], down[1]);
     }
 
     if (direction === DIRECTION.DIAGONAL || direction === DIRECTION.ALL) {
-      const topLeft = this.getSquaresWithinBoundary(squareIndex, 7, squareBoundary, options);
-      const topRight = this.getSquaresWithinBoundary(squareIndex, 9, squareBoundary, options);
-      const bottomLeft = this.getSquaresWithinBoundary(squareIndex, -9, squareBoundary, options);
-      const bottomRight = this.getSquaresWithinBoundary(squareIndex, -7, squareBoundary, options);
+      const topLeft = !leftWall.has(squareIndex) ? this.getSquaresWithinBoundary(squareIndex, 7, squareBoundary, options) : [];
+      const topRight = !rightWall.has(squareIndex) ? this.getSquaresWithinBoundary(squareIndex, 9, squareBoundary, options) : [];
+      const bottomLeft = !leftWall.has(squareIndex) ? this.getSquaresWithinBoundary(squareIndex, -9, squareBoundary, options) : [];
+      const bottomRight = !rightWall.has(squareIndex) ? this.getSquaresWithinBoundary(squareIndex, -7, squareBoundary, options) : [];
       squares.push(topLeft[0], topRight[0], bottomLeft[0], bottomRight[0]);
       targetOnlySquares.push(topLeft[1], topRight[1], bottomLeft[1], bottomRight[1]);
     }
 
     if (direction === DIRECTION.DIAGONAL_TOP) {
-      const topLeft = this.getSquaresWithinBoundary(squareIndex, 7, squareBoundary, options);
-      const topRight = this.getSquaresWithinBoundary(squareIndex, 9, squareBoundary, options);
+      const topLeft = !leftWall.has(squareIndex) ? this.getSquaresWithinBoundary(squareIndex, 7, squareBoundary, options) : [];
+      const topRight = !rightWall.has(squareIndex) ? this.getSquaresWithinBoundary(squareIndex, 9, squareBoundary, options) : [];
       squares.push(topLeft[0], topRight[0]);
       targetOnlySquares.push(topLeft[1], topRight[1]);
     }
@@ -688,7 +847,7 @@ export default class Engine {
 
     if (direction === DIRECTION.KNIGHT) {
       const targetPieces = collisionPieces ? ALL_PIECES.difference(collisionPieces) : null;
-      const plusDirWithinBoundary = this.getSquaresInDirection(location, DIRECTION.PLUS, { depth: 2 });
+      const plusDirWithinBoundary = this.getSquaresInDirection(location, DIRECTION.PLUS, { depth: 2, state });
       const ekBeModsVertical = [16, -16];
       const ekBeModsHorizontal = [2, -2];
       ekBeModsVertical.forEach((mod) => {
@@ -696,7 +855,7 @@ export default class Engine {
         if (plusDirWithinBoundary[0].has(beSquare)) {
           if (!leftWall.has(beSquare)) {
             const finalIndex = beSquare - 1;
-            const pieceWColour = this.extractPieceWColourFromSquareIndex(finalIndex);
+            const pieceWColour = this.extractPieceWColourFromSquareIndex(finalIndex, state);
             if (!collisionPieces?.has(pieceWColour)) {
               squares.push(finalIndex);
 
@@ -707,7 +866,7 @@ export default class Engine {
           }
           if (!rightWall.has(beSquare)) {
             const finalIndex = beSquare + 1;
-            const pieceWColour = this.extractPieceWColourFromSquareIndex(finalIndex);
+            const pieceWColour = this.extractPieceWColourFromSquareIndex(finalIndex, state);
             if (!collisionPieces?.has(pieceWColour)) {
               squares.push(finalIndex);
 
@@ -724,7 +883,7 @@ export default class Engine {
         if (plusDirWithinBoundary[0].has(beSquare)) {
           if (!bottomWall.has(beSquare)) {
             const finalIndex = beSquare - 8;
-            const pieceWColour = this.extractPieceWColourFromSquareIndex(finalIndex);
+            const pieceWColour = this.extractPieceWColourFromSquareIndex(finalIndex, state);
             if (!collisionPieces?.has(pieceWColour)) {
               squares.push(finalIndex);
 
@@ -735,7 +894,7 @@ export default class Engine {
           }
           if (!topWall.has(beSquare)) {
             const finalIndex = beSquare + 8;
-            const pieceWColour = this.extractPieceWColourFromSquareIndex(finalIndex);
+            const pieceWColour = this.extractPieceWColourFromSquareIndex(finalIndex, state);
             if (!collisionPieces?.has(pieceWColour)) {
               squares.push(finalIndex);
 
@@ -749,19 +908,19 @@ export default class Engine {
     }
 
     if ([DIRECTION.PAWN, DIRECTION.B_PAWN, DIRECTION.W_PAWN].includes(direction)) {
-      const locationSquare = this.state[squareIndex];
+      const locationSquare = state[squareIndex];
       const colour = this.extractColour(locationSquare);
 
       // not sure if I want to tag "unmoved" pieces,
       // I'll just allow the pawn to move two squares if they're in the 2nd closest row to the players
       if (direction === DIRECTION.W_PAWN || colour === PIECES.WHITE) {
-        const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_TOP, { depth: 1, collisionPieces: new Set([...WHITE_PIECES, PIECES.EMPTY]) });
-        const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex + 8);
+        const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_TOP, { depth: 1, collisionPieces: new Set([...WHITE_PIECES, PIECES.EMPTY]), state });
+        const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex + 8, state);
         if (!ALL_PIECES.has(pieceWColour)) {
           squares.push(squareIndex + 8);
 
           if (squareIndex >= 8 && squareIndex <= 15) {
-            const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex + 16);
+            const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex + 16, state);
             if (!ALL_PIECES.has(pieceWColour)) {
               squares.push(squareIndex + 16);
             }
@@ -770,13 +929,13 @@ export default class Engine {
         captureSquares[0].forEach((s) => squares.push(s));
         captureSquares[1].forEach((s) => targetOnlySquares.push(s));
       } else if (direction === DIRECTION.B_PAWN || colour === PIECES.BLACK) {
-        const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_BOTTOM, { depth: 1, collisionPieces: new Set([...BLACK_PIECES, PIECES.EMPTY]) });
-        const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex - 8);
+        const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_BOTTOM, { depth: 1, collisionPieces: new Set([...BLACK_PIECES, PIECES.EMPTY]), state });
+        const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex - 8, state);
         if (!ALL_PIECES.has(pieceWColour)) {
           squares.push(squareIndex - 8);
 
           if (squareIndex >= 48 && squareIndex <= 55) {
-            const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex - 16);
+            const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex - 16, state);
             if (!ALL_PIECES.has(pieceWColour)) {
               squares.push(squareIndex - 16);
             }
@@ -787,42 +946,45 @@ export default class Engine {
       }
     }
 
-    return [new Set(squares.flat()), new Set(targetOnlySquares.flat())];
+    return [new Set(squares.filter((a) => a !== undefined).flat()), new Set(targetOnlySquares.filter((a) => a !== undefined).flat())];
   }
 
-  getMovableSquares(location: string) {
+  getMovableSquares(location: string, _state?: number[]) {
+    // debugger;
+    const state = _state || this.state;
     const squareIndex = SQUARE_INDEX_MAP[location];
-    const locationSquare = this.state[squareIndex];
+    const locationSquare = state[squareIndex];
 
     const currentPiece = this.extractPiece(locationSquare);
     const colour = this.extractColour(locationSquare);
     const collisionPieces = colour === PIECES.WHITE ? WHITE_PIECES : BLACK_PIECES;
 
     if (currentPiece === PIECES.KNIGHT) {
-      return this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces });
+      return this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces, state });
     }
 
     if (currentPiece === PIECES.QUEEN) {
-      return this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces });
+      return this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces, state });
     }
 
     if (currentPiece === PIECES.KING) {
-      const [ reqularSquares, targetOnlySquares ] = this.getSquaresInDirection(location, DIRECTION.ALL, { depth: 1, collisionPieces });
-      const castleSquares = this.getCastleSquares(colour);
+      const [ reqularSquares, targetOnlySquares ] = this.getSquaresInDirection(location, DIRECTION.ALL, { depth: 1, collisionPieces, state });
+      const castleSquares = ((colour === PIECES.WHITE && location === "e1") || (colour === PIECES.BLACK && location === "e8")) 
+        ? this.getCastleSquares(colour, state) : new Set<number>();
       
       return [ new Set([ ...reqularSquares, ...castleSquares ]), targetOnlySquares ];
     }
 
     if (currentPiece === PIECES.BISHOP) {
-      return this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces });
+      return this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces, state });
     }
 
     if (currentPiece === PIECES.ROOK) {
-      return this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces });
+      return this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces, state });
     }
 
     if (currentPiece === PIECES.PAWN) {
-      return this.getSquaresInDirection(location, DIRECTION.PAWN, { collisionPieces });
+      return this.getSquaresInDirection(location, DIRECTION.PAWN, { collisionPieces, state });
     }
 
     return [new Set<number>(), new Set<number>()];

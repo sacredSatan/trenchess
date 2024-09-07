@@ -5,7 +5,7 @@ import { DataConnection } from 'peerjs';
 type BoardProps = {
   isWhite: boolean;
   position: Record<string, string>;
-  setPosition: React.Dispatch<React.SetStateAction<string>>;
+  setPosition: React.Dispatch<React.SetStateAction<unknown>>;
   engine: Engine;
   connection: DataConnection | null;
 }
@@ -107,7 +107,7 @@ const Board: React.FC<BoardProps> = (props) => {
         setPromotionMove(move);
         return;
       }
-      if(engine.move(move)) {
+      if(engine.move(move) > 1) {
         connection?.send(move);
       }
       setPosition(engine.getPositions());
@@ -126,7 +126,7 @@ const Board: React.FC<BoardProps> = (props) => {
         const pieceImageName = isWhite ? "w" + piece : "b" + piece;
         return <div key={piece} style={squareStyle} onClick={() => {
           const move = promotionMove + " " + piece;
-          if(engine.move(move)) {
+          if(engine.move(move) > 1) {
             connection?.send(move);
             setPosition(engine.getPositions());
             setMovableSquares(undefined);
@@ -164,7 +164,7 @@ const Board: React.FC<BoardProps> = (props) => {
                 activePosition.current = undefined;
                 return;
               }
-              if(engine.move(move)) {
+              if(engine.move(move) > 1) {
                 connection?.send(move);
                 setPosition(engine.getPositions());
                 setMovableSquares(undefined);
