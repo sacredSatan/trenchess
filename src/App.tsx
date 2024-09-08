@@ -57,6 +57,7 @@ function App() {
       <h6>ID: {peerId?.replaceAll(PEER_ID_PREFIX, "")}</h6>
       <h6>LAST MOVE STATE: {moveState}</h6>
       <button type="button" onClick={(() => { engine.undoMove(); setPosition(engine.getPositions()) })}>undo move</button>
+      {/* @ts-expect-error who cares at this point */}
       <Board isWhite={!isHost} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
     </>
   )

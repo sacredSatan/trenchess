@@ -24,7 +24,7 @@ export const clientInitialize = () => {
       debug: 3,
     });
 
-    peer.on('open', function (id) {
+    peer.on('open', function () {
         // Workaround for peer.reconnect deleting previous id
         if (peer.id === null) {
             console.log('Received null id from peer open');
@@ -94,7 +94,7 @@ export const hostInitialize = (peerId: string) => {
       debug: 3
     });
 
-    peer.on('open', function (id) {
+    peer.on('open', function () {
         if (peer.id === null) {
             console.log('Received null id from peer open');
             // @ts-expect-error following an example

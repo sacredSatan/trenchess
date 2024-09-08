@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# public is the build dir because glpages for some reason insists on it
+public
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
