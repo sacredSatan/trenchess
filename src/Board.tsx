@@ -101,8 +101,8 @@ const Board: React.FC<BoardProps> = (props) => {
       const target = e.target as HTMLDivElement;
       const toPosition = target.dataset.position ?? "";
       const move = `${fromPosition} ${toPosition}`;
-      if(piece === "P" && "abcdefgh".split("").map((col) => `${col}8`).includes(toPosition) && engine.getCurrentTurn() === "white" || 
-      piece === "p" && "abcdefgh".split("").map((col) => `${col}1`).includes(toPosition) && engine.getCurrentTurn() === "black") {
+      if(piece === "P" && toPosition.endsWith("8") && fromPosition.endsWith("7") && engine.getCurrentTurn() === "white" || 
+      piece === "p" && toPosition.endsWith("1") && fromPosition.endsWith("2") && engine.getCurrentTurn() === "black") {
         target.style.boxShadow = target.style.boxShadow.replaceAll(hoverShadow, "");
         setPromotionMove(move);
         return;
@@ -158,8 +158,8 @@ const Board: React.FC<BoardProps> = (props) => {
           } else {
             if(activePosition.current) {
               const move = `${activePos} ${positionName}`;
-              if(activePiece === "P" && "abcdefgh".split("").map((col) => `${col}8`).includes(positionName) && engine.getCurrentTurn() === "white" || 
-              activePiece === "p" && "abcdefgh".split("").map((col) => `${col}1`).includes(positionName) && engine.getCurrentTurn() === "black") {
+              if(activePiece === "P" && positionName.endsWith("8") && activePos.endsWith("7") && engine.getCurrentTurn() === "white" || 
+              activePiece === "p" && positionName.endsWith("1") && activePos.endsWith("2") && engine.getCurrentTurn() === "black") {
                 setPromotionMove(move);
                 activePosition.current = undefined;
                 return;
@@ -179,6 +179,7 @@ const Board: React.FC<BoardProps> = (props) => {
             }
           }
         }}>
+          <div style={{ color: "black", position: "absolute", bottom: 0, left: 0, fontSize: 10 }}>{positionName}</div>
           {piece ? <div data-position={positionName} data-piece={piece} data-has-piece={true} data-movable={isMovable} draggable={true} style={{ ...pieceStyle, backgroundImage: `url(./pieces/${pieceImageName}.svg)`, backgroundSize: "contain", transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}></div>: null}
         </div>;
       })}
