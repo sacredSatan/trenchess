@@ -219,73 +219,7 @@ const MOVE_RETURN_VALUES_MAP = {
   [MOVE_RETURN_VALUES.MOVE]: "MOVE",
 }
 
-const TEST_1 = [
-  10,
-  12,
-  11,
-  13,
-  14,
-  11,
-  12,
-  10,
-  9,
-  9,
-  9,
-  9,
-  9,
-  0,
-  9,
-  9,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  9,
-  0,
-  0,
-  17,
-  17,
-  17,
-  17,
-  0,
-  0,
-  17,
-  17,
-  18,
-  20,
-  19,
-  21,
-  22,
-  19,
-  20,
-  18,
-  127
-];
+const STATE_FOR_ILLEGAL_MATE_TEST = [10,12,11,13,14,11,12,10,9,9,9,9,9,0,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,17,17,17,17,0,0,17,17,18,20,19,21,22,19,20,18,127];
 
 export default class Engine {
   private stateHistory: number[][];
@@ -293,7 +227,7 @@ export default class Engine {
   private lastMoveState: string;
 
   constructor(initialState?: number[]) {
-    this.stateHistory = [initialState ?? TEST_1 ?? DEFAULT_STATE ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
+    this.stateHistory = [initialState ?? DEFAULT_STATE ?? STATE_FOR_ILLEGAL_MATE_TEST ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
     this.positionCountMap = new Map();
     this.lastMoveState = MOVE_RETURN_VALUES_MAP[MOVE_RETURN_VALUES.MOVE];
   }
