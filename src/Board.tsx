@@ -79,6 +79,9 @@ const Board: React.FC<BoardProps> = (props) => {
   const activePosition = useRef<string>();
   const [ movableSquares, setMovableSquares ] = useState<Set<number>>();
   const [ promotionMove, setPromotionMove ] = useState<string>();
+  const [ activeModifier, setActiveModifier ] = useState<string>();
+
+  console.log(activeModifier, "MOD");
 
   const containerRef = useRef<HTMLDivElement>(null);
   const dragStartHandler = useMemo(() => {
@@ -148,12 +151,19 @@ const Board: React.FC<BoardProps> = (props) => {
         const [ , row ] = positionName.split("");
         const rowInt = parseInt(row) - 1;
         const [piece, modifier] = position[positionName] ?? [];
-        console.log(piece, modifier, positionName);
 
         const _squareStyle = { ...squareStyle, backgroundColor: (index % 2 + rowInt % 2) % 2 ? "#f0d9b5" : "#b58863", opacity: isMovable ? 0.5 : 1, boxShadow: "rgb(0,0,0,0) 0px 0px 0px 0px" };
         const pieceImageName = piece ? piece === piece.toLowerCase() ? "b" + piece : "w" + piece.toLowerCase() : null;
         return <div onDragEnter={dragEnterHandler} data-movable={isMovable} onDragLeave={dragLeaveHandler} id={positionName} data-index={normalizedIndex} key={positionName} data-position={positionName} style={_squareStyle} onClick={() => {
-          console.log(activePosition.current);
+          debugger;
+          if(activeModifier) {
+            if(engine.move(`ADD_MODIFIER ${positionName} ${activeModifier}`) > 1) {
+              setActiveModifier(undefined);
+              setPosition(engine.getPositions());
+              return;
+            }
+          }
+
           const [ activePos, activePiece ] = activePosition.current?.split(" ") ?? [];
           if(activePos === positionName) {
             activePosition.current = undefined;
@@ -185,6 +195,9 @@ const Board: React.FC<BoardProps> = (props) => {
           {piece ? <div data-position={positionName} data-piece={piece} data-has-piece={true} data-movable={isMovable} draggable={true} style={{ ...pieceStyle, backgroundImage: `url(./pieces/${pieceImageName}.svg)`, backgroundSize: "contain", transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}></div>: null}
         </div>;
       })}
+    </div>
+    <div>
+      <button disabled={activeModifier === "1"} onClick={() => setActiveModifier((oldState) => !oldState ? "1" : undefined)}>portal</button>
     </div>
   </>;
 };
