@@ -147,7 +147,9 @@ const Board: React.FC<BoardProps> = (props) => {
         const positionName = engine.indexToPosition(normalizedIndex);
         const [ , row ] = positionName.split("");
         const rowInt = parseInt(row) - 1;
-        const piece = position[positionName];
+        const [piece, modifier] = position[positionName] ?? [];
+        console.log(piece, modifier, positionName);
+
         const _squareStyle = { ...squareStyle, backgroundColor: (index % 2 + rowInt % 2) % 2 ? "#f0d9b5" : "#b58863", opacity: isMovable ? 0.5 : 1, boxShadow: "rgb(0,0,0,0) 0px 0px 0px 0px" };
         const pieceImageName = piece ? piece === piece.toLowerCase() ? "b" + piece : "w" + piece.toLowerCase() : null;
         return <div onDragEnter={dragEnterHandler} data-movable={isMovable} onDragLeave={dragLeaveHandler} id={positionName} data-index={normalizedIndex} key={positionName} data-position={positionName} style={_squareStyle} onClick={() => {
@@ -179,7 +181,7 @@ const Board: React.FC<BoardProps> = (props) => {
             }
           }
         }}>
-          <div style={{ color: "black", position: "absolute", bottom: 0, left: 0, fontSize: 10 }}>{positionName}</div>
+          <div style={{ color: "black", position: "absolute", bottom: 0, left: 0, fontSize: 10, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}>{positionName}{modifier}</div>
           {piece ? <div data-position={positionName} data-piece={piece} data-has-piece={true} data-movable={isMovable} draggable={true} style={{ ...pieceStyle, backgroundImage: `url(./pieces/${pieceImageName}.svg)`, backgroundSize: "contain", transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}></div>: null}
         </div>;
       })}
