@@ -31,6 +31,10 @@ const promotionGridStyle = {
   background: "rgba(0,0,0,0.5)",
 };
 
+const activeButtonStyle = {
+  border: "2px solid #fff",
+};
+
 // too tedious to use html5 dnd but the libraries aren't much better, at least at this stage
 const dragEndHandler: React.DragEventHandler<HTMLDivElement> = (e) => {
   const pieceSquare = e.target as HTMLDivElement;
@@ -68,6 +72,14 @@ const dragLeaveHandler: React.DragEventHandler<HTMLDivElement> = (e) => {
 };
 
 const PROMOTION_CHOICES = ["q", "n", "b", "r"];
+
+const MODIFIER_IMAGE_MAP = {
+  "⁰": "trench.svg",
+  "¹": "portal.svg",
+  "²": "royalty.svg",
+  "³": "bishop.svg",
+  "⁴": "rook.svg",
+} as Record<string, string>;
 
 // paddingBottom 100% ensures div is a square
 // https://dev.to/tchaflich/a-width-responsive-perfect-square-in-pure-css-3dao
@@ -151,6 +163,7 @@ const Board: React.FC<BoardProps> = (props) => {
         const [ , row ] = positionName.split("");
         const rowInt = parseInt(row) - 1;
         const [piece, modifier] = position[positionName] ?? [];
+        const modifierImage = MODIFIER_IMAGE_MAP[modifier];
 
         const _squareStyle = { ...squareStyle, backgroundColor: (index % 2 + rowInt % 2) % 2 ? "#f0d9b5" : "#b58863", opacity: isMovable ? 0.5 : 1, boxShadow: "rgb(0,0,0,0) 0px 0px 0px 0px" };
         const pieceImageName = piece ? piece === piece.toLowerCase() ? "b" + piece : "w" + piece.toLowerCase() : null;
@@ -191,13 +204,15 @@ const Board: React.FC<BoardProps> = (props) => {
             }
           }
         }}>
-          <div style={{ color: "black", position: "absolute", bottom: 0, left: 0, fontSize: 10, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}>{positionName}{modifier}</div>
+          <div style={{ color: "black", position: "absolute", bottom: 0, left: 0, fontSize: 10, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}>{positionName}</div>
+          <div style={{ color: "black", position: "absolute", top: 0, left: 0, fontSize: 10, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}>{normalizedIndex}</div>
+          <div style={{ position: "absolute", bottom: 0, right: 0, fontSize: 10, transform: `rotate(${isWhite ? "0deg" : "180deg"})`, width: 15, height: 15, backgroundImage: `url(./modifiers/${modifierImage})`, backgroundSize: "contain", }}></div>
           {piece ? <div data-position={positionName} data-piece={piece} data-has-piece={true} data-movable={isMovable} draggable={true} style={{ ...pieceStyle, backgroundImage: `url(./pieces/${pieceImageName}.svg)`, backgroundSize: "contain", transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}></div>: null}
         </div>;
       })}
     </div>
     <div>
-      <button disabled={activeModifier === "1"} onClick={() => setActiveModifier((oldState) => !oldState ? "1" : undefined)}>portal</button>
+      <button style={activeModifier === "1" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "1" : undefined)}>portal</button>
     </div>
   </>;
 };

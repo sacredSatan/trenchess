@@ -240,7 +240,7 @@ export default class Engine {
   private lastMoveState: string;
 
   constructor(initialState?: number[]) {
-    this.stateHistory = [initialState ?? STATE_FOR_PORTAL_TEST ?? DEFAULT_STATE ?? STATE_FOR_CHECKMATE_BUG ?? STATE_FOR_ILLEGAL_MATE_TEST ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
+    this.stateHistory = [initialState ?? DEFAULT_STATE ?? STATE_FOR_PORTAL_TEST ?? STATE_FOR_CHECKMATE_BUG ?? STATE_FOR_ILLEGAL_MATE_TEST ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
     this.positionCountMap = new Map();
     this.lastMoveState = MOVE_RETURN_VALUES_MAP[MOVE_RETURN_VALUES.MOVE];
   }
@@ -397,6 +397,13 @@ export default class Engine {
       const targetIndex = SQUARE_INDEX_MAP[to];
       const modifierValue = MODIFIER_INDEX[promotionPiece];
       const currentPieceWColour = this.extractPieceWColourFromSquareIndex(targetIndex, state);
+      const square = state[targetIndex];
+      const currentPiece = this.extractPiece(square);
+
+      if(currentPiece !== PIECES.EMPTY && currentPiece !== PIECES.EN_PASSANT) {
+        return MOVE_RETURN_VALUES.INVALID;
+      }
+
       nextState[targetIndex] = currentPieceWColour | modifierValue;
   
       // this.switchTurns(state);
@@ -805,22 +812,25 @@ export default class Engine {
       const colour = this.extractColour(square);
       const location = LOCATION_MAP[squareIndex];
       const collisionPieces = colour === PIECES.WHITE ? WHITE_PIECES : BLACK_PIECES;
-      dangerMap[colour] = this.checkSquareInDanger(location, colour, collisionPieces, state);
+      const modifier = this.extractModifierFromSquareIndex(squareIndex, state);
+      const skipPortal = modifier !== TILE_MODIFIERS.PORTAL;
+      dangerMap[colour] = this.checkSquareInDanger(location, colour, collisionPieces, { state, skipPortal });
     }
     return dangerMap;
   }
   
-  getAttackingTargetSquares(location: string, colour: number, collisionPieces: Set<number>, options: { state?: number[], skipPortal: boolean; }) {
+  getAttackingTargetSquares(location: string, colour: number, collisionPieces: Set<number>, options: { state?: number[], skipPortal?: boolean; }) {
+    debugger;
     const { state: _state, skipPortal } = options;
     const state = _state || this.state;
     const squareIndex = SQUARE_INDEX_MAP[location];
     const targetPieces = ALL_PIECES.difference(collisionPieces);
     const pawnDirection = colour === PIECES.WHITE ? DIRECTION.W_PAWN : DIRECTION.B_PAWN;
-    const [, plusSquares] = this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces: collisionPieces, state });
-    const [, diagonalSquares] = this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces: collisionPieces, state });
-    const [, knightSqaures] = this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces: collisionPieces, state });
-    const [, pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces: collisionPieces, state, depth: 1 });
-    const [, kingSquares] = this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces: new Set([ PIECES.KING | colour ]), state, depth: 1 });
+    const [, plusSquares] = this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces: collisionPieces, state, skipModifiers: skipPortal });
+    const [, diagonalSquares] = this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces: collisionPieces, state, skipModifiers: skipPortal });
+    const [, knightSqaures] = this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces: collisionPieces, state, skipModifiers: skipPortal });
+    const [, pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces: collisionPieces, state, depth: 1, skipModifiers: skipPortal });
+    const [, kingSquares] = this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces: new Set([ PIECES.KING | colour ]), state, depth: 1, skipModifiers: skipPortal });
     const [allPortalSquares] = skipPortal ? [new Set<number>(), new Set<number>()] : this.getSquaresWithPortalFromSquareIndexArr([ squareIndex ], targetPieces, state);
 
     const portalAttacks: number[] = [];
@@ -842,8 +852,9 @@ export default class Engine {
     ]);
   }
   
-  checkSquareInDanger(location: string, colour: number, collisionPieces: Set<number>, _state?: number[]) {
-    const squares = this.getAttackingTargetSquares(location, colour, collisionPieces, { state: _state, skipPortal: false });
+  checkSquareInDanger(location: string, colour: number, collisionPieces: Set<number>, options: { state?: number[], skipPortal?: boolean }) {
+    const { state: _state, skipPortal } = options;
+    const squares = this.getAttackingTargetSquares(location, colour, collisionPieces, { state: _state, skipPortal });
     console.log({ squares });
     return Object.values(squares).some((v) => v.size > 0);
   }
@@ -1046,11 +1057,11 @@ export default class Engine {
       }
     }
 
-    // only pawn and knight has any special target pieces and both cases won't ever to a recursive call so this is fine for now
+    // only pawn and knight has any special target pieces and both cases won't ever do a recursive call so this is fine for now
     let squareIndexSet = new Set(squares.filter((a) => a !== undefined).flat());
     let targetIndexSet = new Set(targetOnlySquares.filter((a) => a !== undefined).flat());
     if(!skipModifiers) {
-      const squaresWithoutTargets = Array.from(squareIndexSet.difference(targetIndexSet));
+      const squaresWithoutTargets = Array.from([...squareIndexSet.difference(targetIndexSet), squareIndex]);
       const [ _squareIndexSet, _targetIndexSet ] = this.getSquaresWithPortalFromSquareIndexArr(squaresWithoutTargets, targetPieces, state);
       squareIndexSet = squareIndexSet.union(_squareIndexSet);
       targetIndexSet = targetIndexSet.union(_targetIndexSet);
@@ -1135,7 +1146,7 @@ export default class Engine {
       const collisionPieces = WHITE_PIECES;
       if(gameState.wkc) {
         const squareLocationsToCheck = [ "e1", "f1", "g1" ];
-        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, state))) {
+        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, { state }))) {
           const squareIndex = SQUARE_INDEX_MAP["g1"];
           if(this.extractPiece(state[squareIndex]) === PIECES.EMPTY) {
             castleSquares.add(squareIndex);
@@ -1144,7 +1155,7 @@ export default class Engine {
       }
       if(gameState.wqc) {
         const squareLocationsToCheck = [ "e1", "d1", "c1" ];
-        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, state))) {
+        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, { state }))) {
           const squareIndex = SQUARE_INDEX_MAP["c1"];
           if(this.extractPiece(state[squareIndex]) === PIECES.EMPTY) {
             castleSquares.add(squareIndex);
@@ -1157,7 +1168,7 @@ export default class Engine {
       const collisionPieces = BLACK_PIECES;
       if(gameState.bkc) {
         const squareLocationsToCheck = [ "e8", "f8", "g8" ];
-        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, state))) {
+        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, { state }))) {
           const squareIndex = SQUARE_INDEX_MAP["g8"];
           if(this.extractPiece(state[squareIndex]) === PIECES.EMPTY) {
             castleSquares.add(squareIndex);
@@ -1166,7 +1177,7 @@ export default class Engine {
       }
       if(gameState.bqc) {
         const squareLocationsToCheck = [ "e8", "d8", "c8" ];
-        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, state))) {
+        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, { state }))) {
           const squareIndex = SQUARE_INDEX_MAP["c8"];
           if(this.extractPiece(state[squareIndex]) === PIECES.EMPTY) {
             castleSquares.add(squareIndex);
