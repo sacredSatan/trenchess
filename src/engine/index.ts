@@ -1080,7 +1080,7 @@ export default class Engine {
     });
 
     if(hasPortal) {
-      const allPortalSquareIndexes = state.slice(0, -1).map((square, index) => {
+      const allPortalSquareIndexes = state.slice(0, -1).map((_square, index) => {
         const modifier = this.extractModifierFromSquareIndex(index, state);
         return modifier === TILE_MODIFIERS.PORTAL ? index : null;
       }).filter(Boolean) as number[];
