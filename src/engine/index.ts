@@ -557,11 +557,11 @@ export default class Engine {
       if (fromSquarePiece === PIECES.PAWN) {
         if (fromPieceColour === PIECES.WHITE) {
           if (fromSquareIndex >= 8 && fromSquareIndex <= 15 && toSquareIndex === fromSquareIndex + 16) {
-            nextState[toSquareIndex - 8] = PIECES.EN_PASSANT | PIECES.WHITE;
+            nextState[toSquareIndex - 8] |= (PIECES.EN_PASSANT | PIECES.WHITE);
           }
         } else if (fromPieceColour === PIECES.BLACK) {
           if (fromSquareIndex >= 48 && fromSquareIndex <= 55 && toSquareIndex === fromSquareIndex - 16) {
-            nextState[toSquareIndex + 8] = PIECES.EN_PASSANT | PIECES.BLACK;
+            nextState[toSquareIndex + 8] |= (PIECES.EN_PASSANT | PIECES.BLACK);
           }
         }
       }
