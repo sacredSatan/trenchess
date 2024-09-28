@@ -45,6 +45,8 @@ enum TILE_MODIFIERS {
   // treating valid en passant as a modifier for now
   // didn't do it this way after all
   // EN_PASSANT    = 0b1_00000000,
+
+  CLEAR_MODIFIER = 0,
 }
 
 enum BOARD_MASKS {
@@ -76,6 +78,7 @@ enum GAME_STATE_MASKS {
 }
 
 const MODIFIER_INDEX = {
+  "-1": TILE_MODIFIERS.CLEAR_MODIFIER,
   "0": TILE_MODIFIERS.TRENCH,
   "1": TILE_MODIFIERS.PORTAL,
   "2": TILE_MODIFIERS.ROYALTY_ONLY,
@@ -234,6 +237,12 @@ const MOVE_RETURN_VALUES_MAP = {
 const STATE_FOR_ILLEGAL_MATE_TEST = [10,12,11,13,14,11,12,10,9,9,9,9,9,0,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,17,17,17,17,0,0,17,17,18,20,19,21,22,19,20,18,127];
 const STATE_FOR_PORTAL_TEST =  [22,0,0,0,0,0,0,14,0,0,0,64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,127];
 
+type SkipModifiersOptions = {
+  skipAll?: boolean;
+  skipPortal?: boolean;
+  skipTrench?: boolean;
+}
+
 export default class Engine {
   private stateHistory: number[][];
   private positionCountMap: Map<string, number>;
@@ -388,23 +397,31 @@ export default class Engine {
     const { skipCommit, skipCheckMate, skipStaleMate, state: _state } = options ?? {};
     const state = _state || this.state;
     let nextState = [...state];
-    const [from, to, promotionPiece] = notation.split(" ");
+    const [from, to, ...rest] = notation.split(" ");
     
     const gameState = this.getGameState(state);
     const isInitiallyWhiteTurn = gameState.turn === GAME_STATE.WHITE_TURN;
 
     if(from === "ADD_MODIFIER") {
+      const [ modifierInput ] = rest;
       const targetIndex = SQUARE_INDEX_MAP[to];
-      const modifierValue = MODIFIER_INDEX[promotionPiece];
+      const modifierValue = MODIFIER_INDEX[modifierInput];
       const currentPieceWColour = this.extractPieceWColourFromSquareIndex(targetIndex, state);
+      const currentModifier = this.extractModifierFromSquareIndex(targetIndex, state);
       const square = state[targetIndex];
       const currentPiece = this.extractPiece(square);
 
       if(currentPiece !== PIECES.EMPTY && currentPiece !== PIECES.EN_PASSANT) {
         return MOVE_RETURN_VALUES.INVALID;
       }
-
-      nextState[targetIndex] = currentPieceWColour | modifierValue;
+      
+      if(modifierValue === TILE_MODIFIERS.CLEAR_MODIFIER) {
+        nextState[targetIndex] = currentPieceWColour;
+      } else if(currentModifier) {
+        return MOVE_RETURN_VALUES.INVALID;
+      } else {
+        nextState[targetIndex] = currentPieceWColour | modifierValue;
+      }
   
       // this.switchTurns(state);
       // this.state = state;
@@ -413,6 +430,7 @@ export default class Engine {
       // console.log(this.state, 'STATE MODIFIER');
       // return MOVE_RETURN_VALUES.MOVE;
     } else {
+      const [ promotionPiece ] = rest;
       const fromSquareIndex = SQUARE_INDEX_MAP[from];
       const toSquareIndex = SQUARE_INDEX_MAP[to];
 
@@ -814,28 +832,29 @@ export default class Engine {
       const collisionPieces = colour === PIECES.WHITE ? WHITE_PIECES : BLACK_PIECES;
       const modifier = this.extractModifierFromSquareIndex(squareIndex, state);
       const skipPortal = modifier !== TILE_MODIFIERS.PORTAL;
-      dangerMap[colour] = this.checkSquareInDanger(location, colour, collisionPieces, { state, skipPortal });
+      dangerMap[colour] = this.checkSquareInDanger(location, colour, collisionPieces, { state, skipModifiers: { skipPortal } });
     }
     return dangerMap;
   }
   
-  getAttackingTargetSquares(location: string, colour: number, collisionPieces: Set<number>, options: { state?: number[], skipPortal?: boolean; }) {
+  getAttackingTargetSquares(location: string, colour: number, collisionPieces: Set<number>, options: { state?: number[], skipModifiers?: SkipModifiersOptions; }) {
     debugger;
-    const { state: _state, skipPortal } = options;
+    const { state: _state, skipModifiers } = options;
+    const skipPortal = skipModifiers?.skipPortal;
     const state = _state || this.state;
     const squareIndex = SQUARE_INDEX_MAP[location];
     const targetPieces = ALL_PIECES.difference(collisionPieces);
     const pawnDirection = colour === PIECES.WHITE ? DIRECTION.W_PAWN : DIRECTION.B_PAWN;
-    const [, plusSquares] = this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces: collisionPieces, state, skipModifiers: skipPortal });
-    const [, diagonalSquares] = this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces: collisionPieces, state, skipModifiers: skipPortal });
-    const [, knightSqaures] = this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces: collisionPieces, state, skipModifiers: skipPortal });
-    const [, pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces: collisionPieces, state, depth: 1, skipModifiers: skipPortal });
-    const [, kingSquares] = this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces: new Set([ PIECES.KING | colour ]), state, depth: 1, skipModifiers: skipPortal });
+    const [, plusSquares] = this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces: collisionPieces, state, skipModifiers: { skipPortal } });
+    const [, diagonalSquares] = this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces: collisionPieces, state, skipModifiers: { skipPortal } });
+    const [, knightSqaures] = this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces: collisionPieces, state, skipModifiers: { skipPortal } });
+    const [, pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces: collisionPieces, state, depth: 1, skipModifiers: { skipPortal } });
+    const [, kingSquares] = this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces: new Set([ PIECES.KING | colour ]), state, depth: 1, skipModifiers: { skipPortal } });
     const [allPortalSquares] = skipPortal ? [new Set<number>(), new Set<number>()] : this.getSquaresWithPortalFromSquareIndexArr([ squareIndex ], targetPieces, state);
 
     const portalAttacks: number[] = [];
     Array.from(allPortalSquares).forEach((squareIndex) => {
-      const targetSquaresMap = this.getAttackingTargetSquares(LOCATION_MAP[squareIndex], colour, collisionPieces, { state, skipPortal: true });
+      const targetSquaresMap = this.getAttackingTargetSquares(LOCATION_MAP[squareIndex], colour, collisionPieces, { state, skipModifiers: { skipPortal: true } });
       Object.values(targetSquaresMap).forEach((targetSquareSet) => portalAttacks.push(...Array.from(targetSquareSet)));
     });
 
@@ -852,9 +871,9 @@ export default class Engine {
     ]);
   }
   
-  checkSquareInDanger(location: string, colour: number, collisionPieces: Set<number>, options: { state?: number[], skipPortal?: boolean }) {
-    const { state: _state, skipPortal } = options;
-    const squares = this.getAttackingTargetSquares(location, colour, collisionPieces, { state: _state, skipPortal });
+  checkSquareInDanger(location: string, colour: number, collisionPieces: Set<number>, options: { state?: number[], skipModifiers?: SkipModifiersOptions }) {
+    const { state: _state, skipModifiers } = options;
+    const squares = this.getAttackingTargetSquares(location, colour, collisionPieces, { state: _state, skipModifiers });
     console.log({ squares });
     return Object.values(squares).some((v) => v.size > 0);
   }
@@ -904,7 +923,7 @@ export default class Engine {
     return [squares, targetOnlySquares];
   }
 
-  getSquaresInDirection(location: string, direction: DIRECTION, options: { depth?: number; collisionPieces?: Set<number>; state?: number[]; skipModifiers?: boolean; }) {
+  getSquaresInDirection(location: string, direction: DIRECTION, options: { depth?: number; collisionPieces?: Set<number>; state?: number[]; skipModifiers?: SkipModifiersOptions; }) {
     const { collisionPieces, state: _state, skipModifiers } = options;
     const state = _state || this.state;
     const squareIndex = SQUARE_INDEX_MAP[location];
@@ -1060,7 +1079,7 @@ export default class Engine {
     // only pawn and knight has any special target pieces and both cases won't ever do a recursive call so this is fine for now
     let squareIndexSet = new Set(squares.filter((a) => a !== undefined).flat());
     let targetIndexSet = new Set(targetOnlySquares.filter((a) => a !== undefined).flat());
-    if(!skipModifiers) {
+    if(!skipModifiers?.skipPortal) {
       const squaresWithoutTargets = Array.from([...squareIndexSet.difference(targetIndexSet), squareIndex]);
       const [ _squareIndexSet, _targetIndexSet ] = this.getSquaresWithPortalFromSquareIndexArr(squaresWithoutTargets, targetPieces, state);
       squareIndexSet = squareIndexSet.union(_squareIndexSet);

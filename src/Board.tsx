@@ -102,6 +102,8 @@ const Board: React.FC<BoardProps> = (props) => {
       pieceSquare.style.opacity = "0.5";
       e.dataTransfer.setData("piece", pieceSquare.dataset.piece ?? "");
       e.dataTransfer.setData("position", pieceSquare.dataset.position ?? "");
+      // probably going to remove drag and drop anyway
+      setActiveModifier(undefined);
       setMovableSquares(engine.getMovableSquares(pieceSquare.dataset.position ?? "")[0]);
       console.log(e, pieceSquare);
     };
@@ -179,6 +181,7 @@ const Board: React.FC<BoardProps> = (props) => {
 
           const [ activePos, activePiece ] = activePosition.current?.split(" ") ?? [];
           if(activePos === positionName) {
+            setMovableSquares(undefined);
             activePosition.current = undefined;
           } else {
             if(activePosition.current) {
@@ -196,10 +199,12 @@ const Board: React.FC<BoardProps> = (props) => {
                 activePosition.current = undefined;
               } else {
                 setMovableSquares(engine.getMovableSquares(positionName)[0]);
+                setActiveModifier(undefined);
                 activePosition.current = `${positionName} ${piece}`;
               }
             } else {
               setMovableSquares(engine.getMovableSquares(positionName)[0]);
+              setActiveModifier(undefined);
               activePosition.current = `${positionName} ${piece}`;
             }
           }
@@ -212,7 +217,9 @@ const Board: React.FC<BoardProps> = (props) => {
       })}
     </div>
     <div>
-      <button style={activeModifier === "1" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "1" : undefined)}>portal</button>
+    <button style={activeModifier === "-1" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "-1" : undefined)}>clear</button>
+    <button style={activeModifier === "0" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "0" : undefined)}>trench</button>
+    <button style={activeModifier === "1" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "1" : undefined)}>portal</button>
     </div>
   </>;
 };
