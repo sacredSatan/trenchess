@@ -86,6 +86,8 @@ const MODIFIER_IMAGE_MAP = {
 const squareStyle = { paddingBottom: "100%", position: "relative" as const };
 const pieceStyle = { position: "absolute" as const, top: 0, bottom: 0, width: "100%", height: "100%" };
 
+const PIECE_CHARS = ["k", "q", "r", "b", "n", "p"].map((c) => [ c.toUpperCase(), c ]).flat();
+
 const Board: React.FC<BoardProps> = (props) => {
   const { position, setPosition, engine, connection, isWhite } = props;
   const activePosition = useRef<string>();
@@ -170,13 +172,19 @@ const Board: React.FC<BoardProps> = (props) => {
         const _squareStyle = { ...squareStyle, backgroundColor: (index % 2 + rowInt % 2) % 2 ? "#f0d9b5" : "#b58863", opacity: isMovable ? 0.5 : 1, boxShadow: "rgb(0,0,0,0) 0px 0px 0px 0px" };
         const pieceImageName = piece ? piece === piece.toLowerCase() ? "b" + piece : "w" + piece.toLowerCase() : null;
         return <div onDragEnter={dragEnterHandler} data-movable={isMovable} onDragLeave={dragLeaveHandler} id={positionName} data-index={normalizedIndex} key={positionName} data-position={positionName} style={_squareStyle} onClick={() => {
-          debugger;
           if(activeModifier) {
+            if(PIECE_CHARS.includes(activeModifier)) {
+              engine._dangerouslyReplaceSquareValue(positionName, activeModifier);
+              setPosition(engine.getPositions());
+              setActiveModifier(undefined);
+              return;
+            }
+
             if(engine.move(`ADD_MODIFIER ${positionName} ${activeModifier}`) > 1) {
               setActiveModifier(undefined);
               setPosition(engine.getPositions());
-              return;
             }
+            return;
           }
 
           const [ activePos, activePiece ] = activePosition.current?.split(" ") ?? [];
@@ -220,6 +228,14 @@ const Board: React.FC<BoardProps> = (props) => {
     <button style={activeModifier === "-1" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "-1" : undefined)}>clear</button>
     <button style={activeModifier === "0" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "0" : undefined)}>trench</button>
     <button style={activeModifier === "1" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "1" : undefined)}>portal</button>
+
+      <div>
+        {PIECE_CHARS.map((char) => <button style={activeModifier === char ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? char : undefined)}>{char}</button>)}
+        <br />
+        <button onClick={() => { engine.resetState(); setPosition(engine.getPositions()) }}>EMPTY BOARD</button>
+        <button onClick={() => { engine.resetState(true); setPosition(engine.getPositions()) }}>DEFAULT STATE</button>
+        <button onClick={() => { engine.switchTurns(); setPosition(engine.getPositions()) }}>SWITCH TURNS</button>
+      </div>
     </div>
   </>;
 };

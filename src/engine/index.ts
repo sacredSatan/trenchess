@@ -94,7 +94,7 @@ const MODIFIER_CHAR = {
   [TILE_MODIFIERS.ROYALTY_ONLY]: "²",
   [TILE_MODIFIERS.BISHOP_ONLY]: "³",
   [TILE_MODIFIERS.ROOK_ONLY]: "⁴",
-};
+} as Record<TILE_MODIFIERS, string>;
 
 const MODIFIER_COLOR = {
   [TILE_MODIFIERS.TRENCH]: pc.bgYellow,
@@ -236,6 +236,7 @@ const MOVE_RETURN_VALUES_MAP = {
 
 const STATE_FOR_ILLEGAL_MATE_TEST = [10,12,11,13,14,11,12,10,9,9,9,9,9,0,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,17,17,17,17,0,0,17,17,18,20,19,21,22,19,20,18,127];
 const STATE_FOR_PORTAL_TEST =  [22,0,0,0,0,0,0,14,0,0,0,64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,127];
+const STATE_FOR_TRENCH_TEST = [ 14, 0, 0, 0, 0, 0, 0, 22, 49, 49, 0, 0, 0, 0, 49, 17, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127];
 
 type SkipModifiersOptions = {
   skipAll?: boolean;
@@ -249,7 +250,7 @@ export default class Engine {
   private lastMoveState: string;
 
   constructor(initialState?: number[]) {
-    this.stateHistory = [initialState ?? DEFAULT_STATE ?? STATE_FOR_PORTAL_TEST ?? STATE_FOR_CHECKMATE_BUG ?? STATE_FOR_ILLEGAL_MATE_TEST ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
+    this.stateHistory = [initialState ?? DEFAULT_STATE ?? STATE_FOR_TRENCH_TEST ?? STATE_FOR_PORTAL_TEST ?? STATE_FOR_CHECKMATE_BUG ?? STATE_FOR_ILLEGAL_MATE_TEST ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
     this.positionCountMap = new Map();
     this.lastMoveState = MOVE_RETURN_VALUES_MAP[MOVE_RETURN_VALUES.MOVE];
   }
@@ -260,6 +261,14 @@ export default class Engine {
 
   set state(state: number[]) {
     this.stateHistory.push(state);
+  }
+
+  resetState(setDefault?: boolean) {
+    const emptyState = new Array(64).fill(0);
+    emptyState.push(DEFAULT_GAME_STATE);
+
+    this.stateHistory = [ setDefault ? DEFAULT_STATE : emptyState ];
+    this.lastMoveState = "";
   }
 
   getGameState(state?: number[]) {
@@ -389,11 +398,25 @@ export default class Engine {
     this.draw();
     return lastMoveReturnValue;
   }
+
+  _dangerouslyReplaceSquareValue(location: string, pieceName: string, _state?: number[]) {
+    const state = _state || this.state;
+    const nextState = [...state];
+    const squareIndex = SQUARE_INDEX_MAP[location];
+    const isWhite = pieceName !== pieceName.toLowerCase();
+    const pieceValue = CHAR_TO_PIECES_MAP[pieceName.toLowerCase()];
+    const color = isWhite ? PIECES.WHITE : PIECES.BLACK;
+    const modifier = this.extractModifierFromSquareIndex(squareIndex, state);
+
+    nextState[squareIndex] = pieceValue | color | modifier;
+    this.state = nextState;
+    console.log(this.state, "==== last state");
+  }
   
   // I don't want to spend time implementing actual algebraic notation parsing right now (eventually will have to, when I want to support castles etc I guess)
   // current objective is to get this in a state where I can just write actual gameplay logic with a barebones ui
   _move(notation: string, options?: { skipCommit: boolean; state?: number[]; skipCheckMate?: boolean; skipStaleMate?: boolean; }): MOVE_RETURN_VALUES {
-    debugger;
+    // debugger;
     const { skipCommit, skipCheckMate, skipStaleMate, state: _state } = options ?? {};
     const state = _state || this.state;
     let nextState = [...state];
@@ -411,7 +434,12 @@ export default class Engine {
       const square = state[targetIndex];
       const currentPiece = this.extractPiece(square);
 
-      if(currentPiece !== PIECES.EMPTY && currentPiece !== PIECES.EN_PASSANT) {
+      // can now place modifiers in filled spaces too
+      const emptyPlaceModifiers = new Set([
+        TILE_MODIFIERS.PORTAL, TILE_MODIFIERS.BISHOP_ONLY, TILE_MODIFIERS.ROOK_ONLY, TILE_MODIFIERS.ROYALTY_ONLY,
+      ]);
+
+      if(emptyPlaceModifiers.has(modifierValue) && currentPiece !== PIECES.EMPTY && currentPiece !== PIECES.EN_PASSANT) {
         return MOVE_RETURN_VALUES.INVALID;
       }
       
@@ -420,6 +448,15 @@ export default class Engine {
       } else if(currentModifier) {
         return MOVE_RETURN_VALUES.INVALID;
       } else {
+        if(modifierValue === TILE_MODIFIERS.TRENCH) {
+          if(isInitiallyWhiteTurn && currentPieceWColour !== (PIECES.WHITE | PIECES.PAWN)) {
+            return MOVE_RETURN_VALUES.INVALID;
+          }
+
+          if(!isInitiallyWhiteTurn && currentPieceWColour !== (PIECES.BLACK | PIECES.PAWN)) {
+            return MOVE_RETURN_VALUES.INVALID;
+          }
+        }
         nextState[targetIndex] = currentPieceWColour | modifierValue;
       }
   
@@ -587,9 +624,8 @@ export default class Engine {
 
     this.switchTurns(nextState);
 
-    // debugger;
+    // // debugger;
     const kingInDanger = this.checkKingInDanger(nextState);
-    console.log(kingInDanger);
     if (kingInDanger[PIECES.WHITE]) {
       // switched turns above
       if (isInitiallyWhiteTurn) {
@@ -747,7 +783,7 @@ export default class Engine {
     state.push(gameState);
   }
 
-  switchTurns(_state: number[]) {
+  switchTurns(_state?: number[]) {
     // change turns
     const state = _state || this.state;
     const currentTurn = this.getGameState(state).turn;
@@ -759,7 +795,7 @@ export default class Engine {
   }
   
   checkStaleMate(_state: number[]) {
-    debugger;
+    // debugger;
     const state = _state || this.state;
     const currentTurn = this.getGameState(state).turn;
     const colour = currentTurn === GAME_STATE.WHITE_TURN ? PIECES.WHITE : PIECES.BLACK;
@@ -781,7 +817,7 @@ export default class Engine {
   }
 
   checkMate(colour: PIECES.WHITE | PIECES.BLACK, _state?: number[]) {
-    debugger;
+    // debugger;
     const state = _state || this.state;
     const boardSquares = state.slice(0, -1);
 
@@ -793,11 +829,12 @@ export default class Engine {
     
     return !colouredPiecesPositions.some((position) => {
       const [ movableSquares ] = this.getMovableSquares(position, state);
+      console.log(movableSquares, "from checkmate!!!");
 
       return Array.from(movableSquares).some((squareIndex) => {
         const moveStr = `${position} ${this.indexToPosition(squareIndex)}`;
         const moveRes = this.move(moveStr, { skipCommit: true, skipStaleMate: true, skipCheckMate: true, state });
-        console.log(moveStr, moveRes, moveRes === MOVE_RETURN_VALUES.MOVE);
+        console.log(moveStr, moveRes, moveRes === MOVE_RETURN_VALUES.MOVE, "from checkmate!!!!!");
         return this.move(moveStr, { skipCommit: true, skipStaleMate: true, skipCheckMate: true, state }) === MOVE_RETURN_VALUES.MOVE;
       });
     });
@@ -820,7 +857,7 @@ export default class Engine {
   }
   
   checkKingInDanger(_state: number[]) {
-    debugger;
+    // debugger;
     const state = _state || this.state;
     const kingSquareIndices = Object.values(this.getKingSquareIndexMap(state));
 
@@ -838,7 +875,7 @@ export default class Engine {
   }
   
   getAttackingTargetSquares(location: string, colour: number, collisionPieces: Set<number>, options: { state?: number[], skipModifiers?: SkipModifiersOptions; }) {
-    debugger;
+    // debugger;
     const { state: _state, skipModifiers } = options;
     const skipPortal = skipModifiers?.skipPortal;
     const state = _state || this.state;
@@ -893,7 +930,8 @@ export default class Engine {
   }
 
   getSquaresWithinBoundary(start: number, directionMod: number, boundary: Set<number>, options: { depth?: number; collisionPieces?: Set<number>; state?: number[] }) {
-    const { depth: _depth = 8, collisionPieces, state } = options;
+    const { depth: _depth = 8, collisionPieces, state: _state } = options;
+    const state = _state || this.state;
     const targetPieces = collisionPieces ? ALL_PIECES.difference(collisionPieces) : null;
     let depth = _depth;
     const squares = [];
@@ -906,8 +944,13 @@ export default class Engine {
       }
 
       const pieceWColour = this.extractPieceWColourFromSquareIndex(currentLocation, state);
+      const squareVal = state[currentLocation];
+  
       if (!collisionPieces?.has(pieceWColour)) {
-        squares.push(currentLocation);
+        // for trench
+        if(!collisionPieces?.has(squareVal)) {
+          squares.push(currentLocation);
+        }
 
         if (targetPieces?.has(pieceWColour)) {
           targetOnlySquares.push(currentLocation);
@@ -1117,7 +1160,7 @@ export default class Engine {
   }
 
   getMovableSquares(location: string, _state?: number[]) {
-    debugger;
+    // debugger;
     const state = _state || this.state;
     const squareIndex = SQUARE_INDEX_MAP[location];
     const locationSquare = state[squareIndex];
@@ -1125,6 +1168,7 @@ export default class Engine {
     const currentPiece = this.extractPiece(locationSquare);
     const colour = this.extractColour(locationSquare);
     const collisionPieces = colour === PIECES.WHITE ? WHITE_PIECES : BLACK_PIECES;
+    collisionPieces.add(colour === PIECES.WHITE ? (PIECES.PAWN | PIECES.BLACK | TILE_MODIFIERS.TRENCH) : (PIECES.PAWN | PIECES.WHITE | TILE_MODIFIERS.TRENCH))
 
     if (currentPiece === PIECES.KNIGHT) {
       return this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces, state });
