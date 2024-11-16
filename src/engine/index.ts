@@ -237,6 +237,7 @@ const MOVE_RETURN_VALUES_MAP = {
 const STATE_FOR_ILLEGAL_MATE_TEST = [10,12,11,13,14,11,12,10,9,9,9,9,9,0,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,17,17,17,17,0,0,17,17,18,20,19,21,22,19,20,18,127];
 const STATE_FOR_PORTAL_TEST =  [22,0,0,0,0,0,0,14,0,0,0,64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,77,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,127];
 const STATE_FOR_TRENCH_TEST = [ 14, 0, 0, 0, 0, 0, 0, 22, 49, 49, 0, 0, 0, 0, 49, 17, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127];
+const STATE_FOR_CASTLE_BUG = [10,12,0,13,14,0,0,10,9,0,9,9,9,9,0,9,0,9,0,0,0,12,9,0,0,20,0,0,0,0,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,17,19,17,17,17,17,19,17,18,0,0,21,22,0,0,18,127];
 
 type SkipModifiersOptions = {
   skipAll?: boolean;
@@ -250,7 +251,7 @@ export default class Engine {
   private lastMoveState: string;
 
   constructor(initialState?: number[]) {
-    this.stateHistory = [initialState ?? DEFAULT_STATE ?? STATE_FOR_TRENCH_TEST ?? STATE_FOR_PORTAL_TEST ?? STATE_FOR_CHECKMATE_BUG ?? STATE_FOR_ILLEGAL_MATE_TEST ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
+    this.stateHistory = [initialState ?? DEFAULT_STATE ?? STATE_FOR_CASTLE_BUG ?? STATE_FOR_TRENCH_TEST ?? STATE_FOR_PORTAL_TEST ?? STATE_FOR_CHECKMATE_BUG ?? STATE_FOR_ILLEGAL_MATE_TEST ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
     this.positionCountMap = new Map();
     this.lastMoveState = MOVE_RETURN_VALUES_MAP[MOVE_RETURN_VALUES.MOVE];
   }
@@ -597,6 +598,7 @@ export default class Engine {
             nextState[toSquareIndex + 8] ^= (PIECES.PAWN | PIECES.WHITE);
           }
         }
+        nextState[fromSquareIndex] ^= TILE_MODIFIERS.TRENCH;
       }
 
       nextState = nextState.map((square, index) => {
@@ -1207,44 +1209,38 @@ export default class Engine {
     const castleSquares = new Set<number>();
     if(colour === PIECES.WHITE) {
       const collisionPieces = WHITE_PIECES;
+      const kingSquare = "e1";
       if(gameState.wkc) {
-        const squareLocationsToCheck = [ "e1", "f1", "g1" ];
-        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, { state }))) {
-          const squareIndex = SQUARE_INDEX_MAP["g1"];
-          if(this.extractPiece(state[squareIndex]) === PIECES.EMPTY) {
-            castleSquares.add(squareIndex);
-          }
+        const emptySquares = [ "f1", "g1" ];
+        const squareLocationsToCheck = [ kingSquare, ...emptySquares ];
+        if(!emptySquares.some((location) => this.extractPiece(state[SQUARE_INDEX_MAP[location]]) === PIECES.EMPTY) && !squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, { state }))) {
+          castleSquares.add(SQUARE_INDEX_MAP["g1"]);
         }
       }
       if(gameState.wqc) {
-        const squareLocationsToCheck = [ "e1", "d1", "c1" ];
-        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, { state }))) {
-          const squareIndex = SQUARE_INDEX_MAP["c1"];
-          if(this.extractPiece(state[squareIndex]) === PIECES.EMPTY) {
-            castleSquares.add(squareIndex);
-          }
+        const emptySquares = [ "d1", "c1" ];
+        const squareLocationsToCheck = [ kingSquare, ...emptySquares ];
+        if(!emptySquares.some((location) => this.extractPiece(state[SQUARE_INDEX_MAP[location]]) === PIECES.EMPTY) && !squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, { state }))) {
+          castleSquares.add(SQUARE_INDEX_MAP["c1"]);
         }
       }
     }
     
     if(colour === PIECES.BLACK) {
       const collisionPieces = BLACK_PIECES;
+      const kingSquare = "e8";
       if(gameState.bkc) {
-        const squareLocationsToCheck = [ "e8", "f8", "g8" ];
-        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, { state }))) {
-          const squareIndex = SQUARE_INDEX_MAP["g8"];
-          if(this.extractPiece(state[squareIndex]) === PIECES.EMPTY) {
-            castleSquares.add(squareIndex);
-          }
+        const emptySquares = [ "f8", "g8" ];
+        const squareLocationsToCheck = [ kingSquare, ...emptySquares ];
+        if(!emptySquares.some((location) => this.extractPiece(state[SQUARE_INDEX_MAP[location]]) === PIECES.EMPTY) && !squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, { state }))) {
+          castleSquares.add(SQUARE_INDEX_MAP["g8"]);
         }
       }
       if(gameState.bqc) {
-        const squareLocationsToCheck = [ "e8", "d8", "c8" ];
-        if(!squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, { state }))) {
-          const squareIndex = SQUARE_INDEX_MAP["c8"];
-          if(this.extractPiece(state[squareIndex]) === PIECES.EMPTY) {
-            castleSquares.add(squareIndex);
-          }
+        const emptySquares = [ "d8", "c8" ];
+        const squareLocationsToCheck = [ kingSquare, ...emptySquares ];
+        if(!emptySquares.some((location) => this.extractPiece(state[SQUARE_INDEX_MAP[location]]) === PIECES.EMPTY) && !squareLocationsToCheck.some((location) => this.checkSquareInDanger(location, colour, collisionPieces, { state }))) {
+          castleSquares.add(SQUARE_INDEX_MAP["c8"]);
         }
       }
     }
