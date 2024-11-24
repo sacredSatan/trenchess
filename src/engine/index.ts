@@ -598,7 +598,9 @@ export default class Engine {
             nextState[toSquareIndex + 8] ^= (PIECES.PAWN | PIECES.WHITE);
           }
         }
-        nextState[fromSquareIndex] ^= TILE_MODIFIERS.TRENCH;
+        if(fromSquareModifiers === TILE_MODIFIERS.TRENCH) {
+          nextState[fromSquareIndex] ^= TILE_MODIFIERS.TRENCH;
+        }
       }
 
       nextState = nextState.map((square, index) => {
