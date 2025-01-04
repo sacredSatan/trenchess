@@ -40,6 +40,10 @@ function App() {
   if(!peerId && !debug) {
     return (
       <>
+        <div style={{ opacity: 0.9 }}>
+          <img src="./logo/pawn.svg" width="200" height="200" style={{marginRight: "-129px", marginBottom: "-4px"}} />
+          <img src="./logo/spade.svg" width="150" height="150" />
+        </div>
         <input ref={inputRef} type="text" name="peerName" /> <button type="button" disabled={loading} onClick={() => {
           if(inputRef.current && !loading) {
             setLoading(true);
