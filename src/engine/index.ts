@@ -172,6 +172,7 @@ const STATE_FOR_STALEMATE_TEST = [
 ];
 
 const STATE_FOR_CHECKMATE_BUG =  [10,12,11,13,14,11,12,10,9,9,9,9,0,9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,17,17,0,0,0,0,0,0,0,23,0,17,17,17,17,17,0,0,17,18,20,19,21,22,19,20,18,126];
+const STATE_FOR_REVERSE_PAWN = [10,12,11,13,14,11,12,10,9,9,9,9,0,0,9,9,0,0,0,17,0,0,0,0,0,0,0,0,233,0,0,0,0,0,17,0,0,9,0,0,0,0,0,0,0,0,0,0,17,17,0,0,17,17,17,17,18,20,19,21,22,19,20,18,126,143908,3355204];
 
 const COLUMNS = "abcdefgh".split("");
 const SQUARE_INDEX_MAP = Object.fromEntries(COLUMNS.map((col, colIndex) => {
@@ -208,6 +209,8 @@ enum DIRECTION {
   KNIGHT = "KNIGHT",
   B_PAWN = "B_PAWN",
   W_PAWN = "W_PAWN",
+  W_PAWN_REVERSE = "W_PAWN_REVERSE",
+  B_PAWN_REVERSE = "B_PAWN_REVERSE",
   PAWN = "PAWN",
   ALL = "ALL",
 }
@@ -304,7 +307,7 @@ export default class Engine {
       state.blackCards = this.buildCardNumber(new Array(6).fill(undefined).map(() => availableCards[Math.floor(Math.random() * availableCards.length)]));
     }
 
-    this.stateHistory = [ [ ...DEFAULT_STATE, state.whiteCards, state.blackCards ] ]
+    this.stateHistory = [ [ ...DEFAULT_STATE, state.whiteCards, state.blackCards ] ];
     return state;
   }
 
@@ -690,6 +693,11 @@ export default class Engine {
         if(fromSquareModifiers === TILE_MODIFIERS.TRENCH) {
           nextState[fromSquareIndex] ^= TILE_MODIFIERS.TRENCH;
         }
+
+        if(fromSquareModifiers === TILE_MODIFIERS.REVERSE_PAWN) {
+          nextState[fromSquareIndex] ^= TILE_MODIFIERS.REVERSE_PAWN;
+          nextState[toSquareIndex] |= TILE_MODIFIERS.REVERSE_PAWN;
+        }
       }
 
       nextState = nextState.map((square, index) => {
@@ -975,10 +983,18 @@ export default class Engine {
     const [, plusSquares] = this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces: collisionPieces, state, skipModifiers: { skipPortal } });
     const [, diagonalSquares] = this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces: collisionPieces, state, skipModifiers: { skipPortal } });
     const [, knightSqaures] = this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces: collisionPieces, state, skipModifiers: { skipPortal } });
-    const [, pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces: collisionPieces, state, depth: 1, skipModifiers: { skipPortal } });
+    const [, _pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces: collisionPieces, state, depth: 1, skipModifiers: { skipPortal } });
     const [, kingSquares] = this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces: new Set([ PIECES.KING | colour ]), state, depth: 1, skipModifiers: { skipPortal } });
     const [allPortalSquares] = skipPortal ? [new Set<number>(), new Set<number>()] : this.getSquaresWithPortalFromSquareIndexArr([ squareIndex ], targetPieces, state);
 
+    const pawnSquares = new Set(Array.from(_pawnSquares).filter((squareIndex) => {
+      const piece = this.extractPiece(state[squareIndex]);
+      const modifier = this.extractModifierFromSquareIndex(squareIndex, state);
+      if(piece === PIECES.PAWN && modifier === TILE_MODIFIERS.REVERSE_PAWN) {
+        return false;
+      }
+      return true;
+    }));
     const portalAttacks: number[] = [];
     Array.from(allPortalSquares).forEach((squareIndex) => {
       const targetSquaresMap = this.getAttackingTargetSquares(LOCATION_MAP[squareIndex], colour, collisionPieces, { state, skipModifiers: { skipPortal: true } });
@@ -1165,14 +1181,14 @@ export default class Engine {
       });
     }
 
-    if ([DIRECTION.PAWN, DIRECTION.B_PAWN, DIRECTION.W_PAWN].includes(direction)) {
+    if ([DIRECTION.PAWN, DIRECTION.B_PAWN, DIRECTION.W_PAWN, DIRECTION.W_PAWN_REVERSE, DIRECTION.B_PAWN_REVERSE].includes(direction)) {
       const locationSquare = state[squareIndex];
       const colour = this.extractColour(locationSquare);
 
       // not sure if I want to tag "unmoved" pieces,
       // I'll just allow the pawn to move two squares if they're in the 2nd closest row to the players
-      if (direction === DIRECTION.W_PAWN || (colour === PIECES.WHITE && direction === DIRECTION.PAWN)) {
-        const collisionPieces = new Set([...WHITE_PIECES, PIECES.EN_PASSANT | PIECES.WHITE, PIECES.EMPTY]);
+      if (direction === DIRECTION.W_PAWN || (colour === PIECES.WHITE && direction === DIRECTION.PAWN) || direction === DIRECTION.B_PAWN_REVERSE) {
+        const collisionPieces = direction === DIRECTION.B_PAWN_REVERSE ? new Set([...BLACK_PIECES, PIECES.EN_PASSANT | PIECES.BLACK, PIECES.EMPTY]) : new Set([...WHITE_PIECES, PIECES.EN_PASSANT | PIECES.WHITE, PIECES.EMPTY]);
         targetPieces = ALL_PIECES.difference(collisionPieces);
         const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_TOP, { depth: 1, collisionPieces, state });
         const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex + 8, state);
@@ -1188,8 +1204,8 @@ export default class Engine {
         }
         captureSquares[0].forEach((s) => squares.push(s));
         captureSquares[1].forEach((s) => targetOnlySquares.push(s));
-      } else if (direction === DIRECTION.B_PAWN || (colour === PIECES.BLACK && direction === DIRECTION.PAWN)) {
-        const collisionPieces = new Set([...BLACK_PIECES, PIECES.EN_PASSANT | PIECES.BLACK, PIECES.EMPTY]);
+      } else if (direction === DIRECTION.B_PAWN || (colour === PIECES.BLACK && direction === DIRECTION.PAWN) || direction === DIRECTION.W_PAWN_REVERSE) {
+        const collisionPieces = direction === DIRECTION.W_PAWN_REVERSE ? new Set([...WHITE_PIECES, PIECES.EN_PASSANT | PIECES.WHITE, PIECES.EMPTY]) : new Set([...BLACK_PIECES, PIECES.EN_PASSANT | PIECES.BLACK, PIECES.EMPTY]);
         targetPieces = ALL_PIECES.difference(collisionPieces);
 
         const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_BOTTOM, { depth: 1, collisionPieces, state });
@@ -1289,9 +1305,9 @@ export default class Engine {
       let direction = DIRECTION.PAWN;
       if(currentModifier === TILE_MODIFIERS.REVERSE_PAWN) {
         if(colour === PIECES.WHITE) {
-          direction = DIRECTION.B_PAWN;
+          direction = DIRECTION.W_PAWN_REVERSE;
         } else {
-          direction = DIRECTION.W_PAWN;
+          direction = DIRECTION.B_PAWN_REVERSE;
         }
       }
       return this.getSquaresInDirection(location, direction, { collisionPieces, state });

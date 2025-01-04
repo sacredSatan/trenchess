@@ -153,14 +153,8 @@ const Board: React.FC<BoardProps> = (props) => {
                 setMovableSquares(undefined);
                 activePosition.current = undefined;
               } else {
-                if((piece.toLowerCase() === piece && isWhite) || (piece.toLowerCase() !== piece && !isWhite)) {
-                  if(!debug) {
-                    setMovableSquares(undefined);
-                    activePosition.current = undefined;
-                    return;
-                  }
-                } 
-                activePosition.current = `${positionName} ${piece}`;
+                setMovableSquares(undefined);
+                activePosition.current = undefined;
               }
             } else {
               if((piece.toLowerCase() === piece && isWhite) || (piece.toLowerCase() !== piece && !isWhite)) {
