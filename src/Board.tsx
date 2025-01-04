@@ -44,9 +44,7 @@ const MODIFIER_LABEL_MAP = {
   "⁰": "Clear",
   "¹": "Trench",
   "²": "Portal",
-  "³": "Royalty Only",
-  "⁴": "Bishop Only",
-  "⁵": "Rook Only",
+  "³": "Reverse Pawn",
 } as Record<string, string>;
 
 const MODIFIER_VALUE_MAP = {
@@ -61,9 +59,7 @@ const MODIFIER_VALUE_MAP = {
 const MODIFIER_IMAGE_MAP = {
   "¹": "trench.svg",
   "²": "portal.svg",
-  "³": "royalty.svg",
-  "⁴": "bishop.svg",
-  "⁵": "rook.svg",
+  "³": "reversepawn.svg",
 } as Record<string, string>;
 
 // paddingBottom 100% ensures div is a square
@@ -158,15 +154,19 @@ const Board: React.FC<BoardProps> = (props) => {
                 activePosition.current = undefined;
               } else {
                 if((piece.toLowerCase() === piece && isWhite) || (piece.toLowerCase() !== piece && !isWhite)) {
-                  setMovableSquares(undefined);
-                  activePosition.current = undefined;
-                  return;
+                  if(!debug) {
+                    setMovableSquares(undefined);
+                    activePosition.current = undefined;
+                    return;
+                  }
                 } 
                 activePosition.current = `${positionName} ${piece}`;
               }
             } else {
               if((piece.toLowerCase() === piece && isWhite) || (piece.toLowerCase() !== piece && !isWhite)) {
-                return;
+                if(!debug) {
+                  return;
+                }
               } 
               setMovableSquares(engine.getMovableSquares(positionName)[0]);
               setActiveModifier(undefined);
@@ -181,10 +181,13 @@ const Board: React.FC<BoardProps> = (props) => {
         </div>;
       })}
     </div>
-    <div style={{margin: "10px", padding: "10px", border: "1px solid white"}}>
+    <div style={{margin: "10px", border: "1px solid white"}}>
       {cards.map((card, index) => {
         console.log(activeModifier, card);
-        return <button key={card+index} style={{ margin: "0 10px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => !oldState ? MODIFIER_VALUE_MAP[card] : undefined)}>{MODIFIER_LABEL_MAP[card]}</button>
+        return <>
+          <button key={card+index} style={{ margin: "5px 10px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => !oldState ? MODIFIER_VALUE_MAP[card] : undefined)}>{MODIFIER_LABEL_MAP[card]}</button>
+          {index % 2 !== 0 ? <br /> : null}
+        </>
       })}
     </div>
     {debug ? 
@@ -192,6 +195,7 @@ const Board: React.FC<BoardProps> = (props) => {
       <button style={activeModifier === "-1" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "-1" : undefined)}>clear</button>
       <button style={activeModifier === "0" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "0" : undefined)}>trench</button>
       <button style={activeModifier === "1" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "1" : undefined)}>portal</button>
+      <button style={activeModifier === "2" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "2" : undefined)}>reverse pawn</button>
 
         <div>
           {PIECE_CHARS.map((char) => <button style={activeModifier === char ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? char : undefined)}>{char}</button>)}

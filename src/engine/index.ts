@@ -1,5 +1,3 @@
-import pc from "picocolors";
-
 // board is 64 0s, each piece can be represented by an int
 // 6 pieces to represent p, r, n, b, q, k, 2 states (b/w), n number of modifiers?
 // 4th & 5th binary digit represents the black/white state (8 white, 16 black)
@@ -41,25 +39,27 @@ enum TILE_MODIFIERS {
   ROYALTY_ONLY = 0b0011_00000,
   ROOK_ONLY = 0b0100_00000,
   BISHOP_ONLY = 0b0101_00000,
+  CLEAR_MODIFIER = 0b0110_00000,
+  REVERSE_PAWN = 0b0111_00000,
 
   // treating valid en passant as a modifier for now
   // didn't do it this way after all
   // EN_PASSANT    = 0b1_00000000,
-
-  CLEAR_MODIFIER = 0b0110_00000,
 }
 
 
 enum CARDS {
-  CLEAR_MODIFIER = 0b01,
-  TRENCH = 0b10,
-  PORTAL = 0b11,
+  CLEAR_MODIFIER = 0b0001,
+  TRENCH = 0b0010,
+  PORTAL = 0b0011,
+  REVERSE_PAWN = 0b0100,
   MASK = 0b1111,
 }
 
 const CARD_TO_TILE_MODIFIERS_MAP = {
   [CARDS.TRENCH]: TILE_MODIFIERS.TRENCH,
   [CARDS.PORTAL]: TILE_MODIFIERS.PORTAL,
+  [CARDS.REVERSE_PAWN]: TILE_MODIFIERS.REVERSE_PAWN,
   [CARDS.CLEAR_MODIFIER]: TILE_MODIFIERS.CLEAR_MODIFIER,
 } as Record<CARDS, TILE_MODIFIERS>;
 
@@ -97,9 +97,7 @@ const MODIFIER_INDEX = {
   "-1": TILE_MODIFIERS.CLEAR_MODIFIER,
   "0": TILE_MODIFIERS.TRENCH,
   "1": TILE_MODIFIERS.PORTAL,
-  "2": TILE_MODIFIERS.ROYALTY_ONLY,
-  "3": TILE_MODIFIERS.BISHOP_ONLY,
-  "4": TILE_MODIFIERS.ROOK_ONLY,
+  "2": TILE_MODIFIERS.REVERSE_PAWN,
 } as Record<string, number>;
 
 
@@ -108,20 +106,10 @@ const MODIFIER_CHAR = {
   [TILE_MODIFIERS.CLEAR_MODIFIER]: "⁰",
   [TILE_MODIFIERS.TRENCH]: "¹",
   [TILE_MODIFIERS.PORTAL]: "²",
-  [TILE_MODIFIERS.ROYALTY_ONLY]: "³",
-  [TILE_MODIFIERS.BISHOP_ONLY]: "⁴",
-  [TILE_MODIFIERS.ROOK_ONLY]: "⁵",
+  [TILE_MODIFIERS.REVERSE_PAWN]: "³",
 } as Record<TILE_MODIFIERS, string>;
 
 const CHAR_TO_MODIFIER_MAP = Object.fromEntries(Object.entries(MODIFIER_CHAR).map(e => e.reverse()))
-
-const MODIFIER_COLOR = {
-  [TILE_MODIFIERS.TRENCH]: pc.bgYellow,
-  [TILE_MODIFIERS.PORTAL]: pc.bgBlue,
-  [TILE_MODIFIERS.ROYALTY_ONLY]: pc.bgMagenta,
-  [TILE_MODIFIERS.BISHOP_ONLY]: pc.bgGreen,
-  [TILE_MODIFIERS.ROOK_ONLY]: pc.bgCyan,
-};
 
 const DEFAULT_ORDER = [
   PIECES.ROOK, PIECES.KNIGHT, PIECES.BISHOP, PIECES.QUEEN, PIECES.KING, PIECES.BISHOP, PIECES.KNIGHT, PIECES.ROOK
@@ -309,10 +297,11 @@ export default class Engine {
       whiteCards: 0,
       blackCards: 0,
     };
+
     if(!initialState) {
-      const availableCards = [ CARDS.CLEAR_MODIFIER, CARDS.PORTAL, CARDS.TRENCH ];
-      state.whiteCards = this.buildCardNumber(new Array(5).fill(undefined).map(() => availableCards[Math.floor(Math.random() * availableCards.length)]));
-      state.blackCards = this.buildCardNumber(new Array(5).fill(undefined).map(() => availableCards[Math.floor(Math.random() * availableCards.length)]));
+      const availableCards = [ CARDS.CLEAR_MODIFIER, CARDS.PORTAL, CARDS.TRENCH, CARDS.REVERSE_PAWN ];
+      state.whiteCards = this.buildCardNumber(new Array(6).fill(undefined).map(() => availableCards[Math.floor(Math.random() * availableCards.length)]));
+      state.blackCards = this.buildCardNumber(new Array(6).fill(undefined).map(() => availableCards[Math.floor(Math.random() * availableCards.length)]));
     }
 
     this.stateHistory = [ [ ...DEFAULT_STATE, state.whiteCards, state.blackCards ] ]
@@ -446,7 +435,7 @@ export default class Engine {
     console.log(boardRowStrings.join("\n"));
     console.log(BOARD_BORDER_ROW);
     console.log(BOARD_COL_ROW);
-    console.log(`Mods: 0. ${MODIFIER_COLOR[TILE_MODIFIERS.TRENCH]("TRENCH")}, 1. ${MODIFIER_COLOR[TILE_MODIFIERS.PORTAL]("PORTAL")}, 2. ${MODIFIER_COLOR[TILE_MODIFIERS.ROYALTY_ONLY]("ROYALTY_ONLY")}, 3. ${MODIFIER_COLOR[TILE_MODIFIERS.BISHOP_ONLY]("BISHOP_ONLY")}, 4. ${MODIFIER_COLOR[TILE_MODIFIERS.ROOK_ONLY]("ROOK_ONLY")}`);
+    // console.log(`Mods: 0. ${MODIFIER_COLOR[TILE_MODIFIERS.TRENCH]("TRENCH")}, 1. ${MODIFIER_COLOR[TILE_MODIFIERS.PORTAL]("PORTAL")}, 2. ${MODIFIER_COLOR[TILE_MODIFIERS.ROYALTY_ONLY]("ROYALTY_ONLY")}, 3. ${MODIFIER_COLOR[TILE_MODIFIERS.BISHOP_ONLY]("BISHOP_ONLY")}, 4. ${MODIFIER_COLOR[TILE_MODIFIERS.ROOK_ONLY]("ROOK_ONLY")}`);
 
     console.log(this.getGameState());
     return this.state.at(GAME_STATE_INDEX)?.toString(2);
@@ -532,7 +521,7 @@ export default class Engine {
 
       // can now place modifiers in filled spaces too
       const emptyPlaceModifiers = new Set([
-        TILE_MODIFIERS.PORTAL, TILE_MODIFIERS.BISHOP_ONLY, TILE_MODIFIERS.ROOK_ONLY, TILE_MODIFIERS.ROYALTY_ONLY,
+        TILE_MODIFIERS.PORTAL,
       ]);
 
       if(emptyPlaceModifiers.has(modifierValue) && currentPiece !== PIECES.EMPTY && currentPiece !== PIECES.EN_PASSANT) {
@@ -544,7 +533,7 @@ export default class Engine {
       } else if(currentModifier) {
         return MOVE_RETURN_VALUES.INVALID;
       } else {
-        if(modifierValue === TILE_MODIFIERS.TRENCH) {
+        if(modifierValue === TILE_MODIFIERS.TRENCH || modifierValue === TILE_MODIFIERS.REVERSE_PAWN) {
           if(isInitiallyWhiteTurn && currentPieceWColour !== (PIECES.WHITE | PIECES.PAWN)) {
             return MOVE_RETURN_VALUES.INVALID;
           }
@@ -1182,7 +1171,7 @@ export default class Engine {
 
       // not sure if I want to tag "unmoved" pieces,
       // I'll just allow the pawn to move two squares if they're in the 2nd closest row to the players
-      if (direction === DIRECTION.W_PAWN || colour === PIECES.WHITE) {
+      if (direction === DIRECTION.W_PAWN || (colour === PIECES.WHITE && direction === DIRECTION.PAWN)) {
         const collisionPieces = new Set([...WHITE_PIECES, PIECES.EN_PASSANT | PIECES.WHITE, PIECES.EMPTY]);
         targetPieces = ALL_PIECES.difference(collisionPieces);
         const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_TOP, { depth: 1, collisionPieces, state });
@@ -1199,7 +1188,7 @@ export default class Engine {
         }
         captureSquares[0].forEach((s) => squares.push(s));
         captureSquares[1].forEach((s) => targetOnlySquares.push(s));
-      } else if (direction === DIRECTION.B_PAWN || colour === PIECES.BLACK) {
+      } else if (direction === DIRECTION.B_PAWN || (colour === PIECES.BLACK && direction === DIRECTION.PAWN)) {
         const collisionPieces = new Set([...BLACK_PIECES, PIECES.EN_PASSANT | PIECES.BLACK, PIECES.EMPTY]);
         targetPieces = ALL_PIECES.difference(collisionPieces);
 
@@ -1267,6 +1256,7 @@ export default class Engine {
     const locationSquare = state[squareIndex];
 
     const currentPiece = this.extractPiece(locationSquare);
+    const currentModifier = this.extractModifierFromSquareIndex(squareIndex, state);
     const colour = this.extractColour(locationSquare);
     const collisionPieces = colour === PIECES.WHITE ? WHITE_PIECES : BLACK_PIECES;
     collisionPieces.add(colour === PIECES.WHITE ? (PIECES.PAWN | PIECES.BLACK | TILE_MODIFIERS.TRENCH) : (PIECES.PAWN | PIECES.WHITE | TILE_MODIFIERS.TRENCH))
@@ -1296,7 +1286,15 @@ export default class Engine {
     }
 
     if (currentPiece === PIECES.PAWN) {
-      return this.getSquaresInDirection(location, DIRECTION.PAWN, { collisionPieces, state });
+      let direction = DIRECTION.PAWN;
+      if(currentModifier === TILE_MODIFIERS.REVERSE_PAWN) {
+        if(colour === PIECES.WHITE) {
+          direction = DIRECTION.B_PAWN;
+        } else {
+          direction = DIRECTION.W_PAWN;
+        }
+      }
+      return this.getSquaresInDirection(location, direction, { collisionPieces, state });
     }
 
     return [new Set<number>(), new Set<number>()];

@@ -67,8 +67,8 @@ function App() {
         }}}>Join Host</button>
         <button type="button" onClick={() => {
           setDebug(true);
-          const initialState = engine.initializeGame();
-          setIsWhite(initialState.isWhite);
+          engine.initializeGame();
+          setIsWhite(true);
           setPosition(engine.getPositions())
         }}>SET DEBUG</button>
       </>
