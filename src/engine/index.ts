@@ -46,8 +46,24 @@ enum TILE_MODIFIERS {
   // didn't do it this way after all
   // EN_PASSANT    = 0b1_00000000,
 
-  CLEAR_MODIFIER = 0,
+  CLEAR_MODIFIER = 0b0110_00000,
 }
+
+
+enum CARDS {
+  CLEAR_MODIFIER = 0b01,
+  TRENCH = 0b10,
+  PORTAL = 0b11,
+  MASK = 0b1111,
+}
+
+const CARD_TO_TILE_MODIFIERS_MAP = {
+  [CARDS.TRENCH]: TILE_MODIFIERS.TRENCH,
+  [CARDS.PORTAL]: TILE_MODIFIERS.PORTAL,
+  [CARDS.CLEAR_MODIFIER]: TILE_MODIFIERS.CLEAR_MODIFIER,
+} as Record<CARDS, TILE_MODIFIERS>;
+
+const TILE_MODIFIERS_TO_CARD_MAP = Object.fromEntries(Object.entries(CARD_TO_TILE_MODIFIERS_MAP).map(e => e.reverse()));
 
 enum BOARD_MASKS {
   PIECES = 0b111,
@@ -89,12 +105,15 @@ const MODIFIER_INDEX = {
 
 // wassup "⁰","¹","²","³","⁴","⁵","⁶","⁷","⁸","⁹"
 const MODIFIER_CHAR = {
-  [TILE_MODIFIERS.TRENCH]: "⁰",
-  [TILE_MODIFIERS.PORTAL]: "¹",
-  [TILE_MODIFIERS.ROYALTY_ONLY]: "²",
-  [TILE_MODIFIERS.BISHOP_ONLY]: "³",
-  [TILE_MODIFIERS.ROOK_ONLY]: "⁴",
+  [TILE_MODIFIERS.CLEAR_MODIFIER]: "⁰",
+  [TILE_MODIFIERS.TRENCH]: "¹",
+  [TILE_MODIFIERS.PORTAL]: "²",
+  [TILE_MODIFIERS.ROYALTY_ONLY]: "³",
+  [TILE_MODIFIERS.BISHOP_ONLY]: "⁴",
+  [TILE_MODIFIERS.ROOK_ONLY]: "⁵",
 } as Record<TILE_MODIFIERS, string>;
+
+const CHAR_TO_MODIFIER_MAP = Object.fromEntries(Object.entries(MODIFIER_CHAR).map(e => e.reverse()))
 
 const MODIFIER_COLOR = {
   [TILE_MODIFIERS.TRENCH]: pc.bgYellow,
@@ -245,6 +264,16 @@ type SkipModifiersOptions = {
   skipTrench?: boolean;
 }
 
+type InitialState = {
+  isWhite: boolean;
+  whiteCards: number;
+  blackCards: number;
+};
+
+const GAME_STATE_INDEX = 64;
+const WHITE_CARDS_INDEX = 65;
+const BLACK_CARDS_INDEX = 66;
+
 export default class Engine {
   private stateHistory: number[][];
   private positionCountMap: Map<string, number>;
@@ -264,6 +293,32 @@ export default class Engine {
     this.stateHistory.push(state);
   }
 
+  buildCardNumber(cards: number[]) {
+    let cardNumber = 0;
+    cards.forEach(card => {
+      cardNumber <<= 4;
+      cardNumber |= card;
+    });
+
+    return cardNumber;
+  }
+
+  initializeGame(initialState?: InitialState) {
+    const state = initialState || {
+      isWhite: Math.random() < Math.random(),
+      whiteCards: 0,
+      blackCards: 0,
+    };
+    if(!initialState) {
+      const availableCards = [ CARDS.CLEAR_MODIFIER, CARDS.PORTAL, CARDS.TRENCH ];
+      state.whiteCards = this.buildCardNumber(new Array(5).fill(undefined).map(() => availableCards[Math.floor(Math.random() * availableCards.length)]));
+      state.blackCards = this.buildCardNumber(new Array(5).fill(undefined).map(() => availableCards[Math.floor(Math.random() * availableCards.length)]));
+    }
+
+    this.stateHistory = [ [ ...DEFAULT_STATE, state.whiteCards, state.blackCards ] ]
+    return state;
+  }
+
   resetState(setDefault?: boolean) {
     const emptyState = new Array(64).fill(0);
     emptyState.push(DEFAULT_GAME_STATE);
@@ -273,7 +328,8 @@ export default class Engine {
   }
 
   getGameState(state?: number[]) {
-    const gameStateNumber = (state || this.state).at(-1) ?? 0;
+    console.log(this.state, state, GAME_STATE_INDEX, "GET GAME STATE ====== debugggg")
+    const gameStateNumber = (state || this.state)?.at(GAME_STATE_INDEX) ?? 0;
     
     return {
       turn: gameStateNumber & GAME_STATE_MASKS.TURN,
@@ -286,9 +342,32 @@ export default class Engine {
       [CastleStateOptions.bqc]: (gameStateNumber & GAME_STATE_MASKS.BQ_CASTLE) === GAME_STATE_MASKS.BQ_CASTLE,
     }
   }
+
+  getCards(state?: number[]) {
+    const whiteCardsNumber = (state || this.state)?.at(WHITE_CARDS_INDEX) ?? 0;
+    const blackCardsNumber = (state || this.state)?.at(BLACK_CARDS_INDEX) ?? 0;
+
+    const [ whiteCards, blackCards ] = [ whiteCardsNumber, blackCardsNumber ].map((cardsNumber) => {
+      const cards = [];
+      while(cardsNumber & CARDS.MASK) {
+        const card = (cardsNumber & CARDS.MASK) as CARDS;
+        cardsNumber >>= 4;
+        console.log(cardsNumber, card, MODIFIER_CHAR[CARD_TO_TILE_MODIFIERS_MAP[card]], CARD_TO_TILE_MODIFIERS_MAP[card], "====== carddds");
+        cards.push(MODIFIER_CHAR[CARD_TO_TILE_MODIFIERS_MAP[card]]);
+      }
+      return cards;
+    });
+
+    console.log({ whiteCards, blackCards });
+
+    return {
+      whiteCards,
+      blackCards,
+    }
+  }
   
   getCurrentTurn(state?: number[]) {
-    const gameStateNumber = (state || this.state).at(-1) ?? 0;
+    const gameStateNumber = (state || this.state).at(GAME_STATE_INDEX) ?? 0;
     const turn = gameStateNumber & GAME_STATE_MASKS.TURN;
     if(turn === GAME_STATE.WHITE_TURN) {
       return "white";
@@ -370,11 +449,13 @@ export default class Engine {
     console.log(`Mods: 0. ${MODIFIER_COLOR[TILE_MODIFIERS.TRENCH]("TRENCH")}, 1. ${MODIFIER_COLOR[TILE_MODIFIERS.PORTAL]("PORTAL")}, 2. ${MODIFIER_COLOR[TILE_MODIFIERS.ROYALTY_ONLY]("ROYALTY_ONLY")}, 3. ${MODIFIER_COLOR[TILE_MODIFIERS.BISHOP_ONLY]("BISHOP_ONLY")}, 4. ${MODIFIER_COLOR[TILE_MODIFIERS.ROOK_ONLY]("ROOK_ONLY")}`);
 
     console.log(this.getGameState());
-    return this.state.at(-1)?.toString(2);
+    return this.state.at(GAME_STATE_INDEX)?.toString(2);
   }
 
   getPositions() {
     const turn = this.getGameState().turn;
+    const cards = this.getCards();
+    console.log("getpositions cards", cards);
     return [ Object.fromEntries(this.state.map((square, index) => {
       if (index > 63) {
         return;
@@ -388,7 +469,7 @@ export default class Engine {
       const [piece, modifier] = squareChar.split("");
 
       return [this.indexToPosition(index), [ piece === " " ? undefined : piece, modifier === " " ? undefined : modifier ]];
-    }).filter((a) => !!a)), `${this.lastMoveState} Current Turn: ${turn === 0 ? "WHITE" : "BLACK"}` ]
+    }).filter((a) => !!a)), `${this.lastMoveState} Current Turn: ${turn === 0 ? "WHITE" : "BLACK"}`, cards ]
   }
 
   move(notation: string, options?: { skipCommit: boolean; state?: number[]; skipCheckMate?: boolean; skipStaleMate?: boolean; }): MOVE_RETURN_VALUES {
@@ -426,10 +507,24 @@ export default class Engine {
     const gameState = this.getGameState(state);
     const isInitiallyWhiteTurn = gameState.turn === GAME_STATE.WHITE_TURN;
 
-    if(from === "ADD_MODIFIER") {
+    if(from.startsWith("ADD_MODIFIER_")) {
+      // debugger;
+      const modifierPlayer = from.split("ADD_MODIFIER_")[1];
+      if((modifierPlayer === "WHITE" && !isInitiallyWhiteTurn) || (modifierPlayer === "BLACK" && isInitiallyWhiteTurn)) {
+        return MOVE_RETURN_VALUES.INVALID;
+      }
+
       const [ modifierInput ] = rest;
       const targetIndex = SQUARE_INDEX_MAP[to];
-      const modifierValue = MODIFIER_INDEX[modifierInput];
+      const modifierValue = MODIFIER_INDEX[modifierInput] as TILE_MODIFIERS;
+      const modifierChar = MODIFIER_CHAR[modifierValue];
+      const playerCards = [...(isInitiallyWhiteTurn ? this.getCards().whiteCards : this.getCards().blackCards)];
+      const playerCardIndex = playerCards.indexOf(modifierChar);
+
+      if(playerCardIndex < 0) {
+        return MOVE_RETURN_VALUES.INVALID;
+      }
+
       const currentPieceWColour = this.extractPieceWColourFromSquareIndex(targetIndex, state);
       const currentModifier = this.extractModifierFromSquareIndex(targetIndex, state);
       const square = state[targetIndex];
@@ -460,6 +555,11 @@ export default class Engine {
         }
         nextState[targetIndex] = currentPieceWColour | modifierValue;
       }
+
+      playerCards.splice(playerCardIndex, 1);
+      const remainingCards = playerCards.map((card) => TILE_MODIFIERS_TO_CARD_MAP[CHAR_TO_MODIFIER_MAP[card]]);
+      console.log({ remainingCards });
+      nextState[isInitiallyWhiteTurn ? WHITE_CARDS_INDEX : BLACK_CARDS_INDEX] = this.buildCardNumber(remainingCards);
   
       // this.switchTurns(state);
       // this.state = state;
@@ -697,7 +797,7 @@ export default class Engine {
     }
 
     // repeat draw
-    const positionStr = nextState.slice(0, -1).join();
+    const positionStr = nextState.slice(0, GAME_STATE_INDEX).join();
     if(this.positionCountMap.get(positionStr) === 2) {
       console.log("REPEAT DRAW");
       
@@ -724,7 +824,7 @@ export default class Engine {
       console.log("UNDO MOVE", this.stateHistory.length);
       const removedHistory = this.stateHistory.pop() ?? [];
       // repeat draw
-      const positionStr = removedHistory.slice(0, -1).join();
+      const positionStr = removedHistory.slice(0, GAME_STATE_INDEX).join();
       const currentCount = this.positionCountMap.get(positionStr);
       if(!currentCount) {
         console.log("SOMETHING's WRONG, position not mapped but present in history");
@@ -738,7 +838,7 @@ export default class Engine {
   toggleIllegalState(colour: PIECES.WHITE | PIECES.BLACK, options: { _state?: number[], skipCommit?: boolean }) {
     const { _state, skipCommit } = options;
     const state = _state || this.state;
-    let gameState = state[64];
+    let gameState = state[GAME_STATE_INDEX];
     if(colour === PIECES.WHITE) {
       const currentValue = gameState & GAME_STATE_MASKS.W_ILLEGAL;
       if(currentValue === GAME_STATE_MASKS.W_ILLEGAL) {
@@ -757,15 +857,14 @@ export default class Engine {
       }
     }
     if(!skipCommit) {
-      state.pop();
-      state.push(gameState);
+      state[GAME_STATE_INDEX] = gameState;
     }
     return true;
   }
 
   updateCastleState(castleState: Partial<Record<CastleStateOptions, boolean>>, _state?: number[]) {
     const state = _state || this.state;
-    let gameState = state[64];
+    let gameState = state[GAME_STATE_INDEX];
     const effectiveMaskMap = {
       [CastleStateOptions.wkc]: GAME_STATE_MASKS.WK_CASTLE,
       [CastleStateOptions.wqc]: GAME_STATE_MASKS.WQ_CASTLE,
@@ -783,8 +882,7 @@ export default class Engine {
       }
     }
     
-    state.pop();
-    state.push(gameState);
+    state[GAME_STATE_INDEX] = gameState;
   }
 
   switchTurns(_state?: number[]) {
@@ -792,10 +890,9 @@ export default class Engine {
     const state = _state || this.state;
     const currentTurn = this.getGameState(state).turn;
     const nextTurn = currentTurn === GAME_STATE.WHITE_TURN ? GAME_STATE.BLACK_TURN : GAME_STATE.WHITE_TURN;
-    const gameState = state[64];
+    const gameState = state[GAME_STATE_INDEX];
     const newGameState = gameState ^ currentTurn | nextTurn;
-    state.pop();
-    state.push(newGameState);
+    state[GAME_STATE_INDEX] = newGameState;
   }
   
   checkStaleMate(_state: number[]) {
@@ -803,7 +900,7 @@ export default class Engine {
     const state = _state || this.state;
     const currentTurn = this.getGameState(state).turn;
     const colour = currentTurn === GAME_STATE.WHITE_TURN ? PIECES.WHITE : PIECES.BLACK;
-    const boardSquares = state.slice(0, -1);
+    const boardSquares = state.slice(0, GAME_STATE_INDEX);
     const colouredPiecesPositions = boardSquares.map((square, index) => {
       if(this.extractColour(square) === colour) {
         return this.indexToPosition(index);
@@ -823,7 +920,7 @@ export default class Engine {
   checkMate(colour: PIECES.WHITE | PIECES.BLACK, _state?: number[]) {
     // debugger;
     const state = _state || this.state;
-    const boardSquares = state.slice(0, -1);
+    const boardSquares = state.slice(0, GAME_STATE_INDEX);
 
     const colouredPiecesPositions = boardSquares.map((square, index) => {
       if(this.extractColour(square) === colour) {
@@ -1146,7 +1243,7 @@ export default class Engine {
     });
 
     if(hasPortal) {
-      const allPortalSquareIndexes = state.slice(0, -1).map((_square, index) => {
+      const allPortalSquareIndexes = state.slice(0, GAME_STATE_INDEX).map((_square, index) => {
         const modifier = this.extractModifierFromSquareIndex(index, state);
         return modifier === TILE_MODIFIERS.PORTAL ? index : null;
       }).filter(Boolean) as number[];
