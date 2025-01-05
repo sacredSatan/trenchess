@@ -52,13 +52,13 @@ function App() {
           <input style={{padding: "10px"}} ref={inputRef} placeholder="Enter a passpharse" type="text" name="peerName" /> 
         </div>
         <div style={{marginTop: "10px"}}>
-          <button type="button" disabled={loading} onClick={() => {
+          <button type="button" disabled={loading} style={{pointerEvents: loading ? "none" : "auto"}} onClick={() => {
             if(inputRef.current && !loading) {
               setLoading(true);
               const peerId = inputRef.current.value;
               hostInitialize(peerId).then(() => { setupHostConnection().then(() => { setPeerId(peerId); setLoading(false); }).catch((err) => { throw err; }) });
-          }}}>Host Game</button>
-          <button type="button" disabled={loading} style={{ marginLeft: "10px" }} onClick={() => {
+          }}}>{loading ? "Waiting for other player..." : "Host Game"}</button>
+          <button type="button" disabled={loading} style={{ marginLeft: "10px", pointerEvents: loading ? "none" : "auto" }} onClick={() => {
             if(inputRef.current && !loading) {
               const peerId = inputRef.current.value;
             setLoading(true);
@@ -76,7 +76,7 @@ function App() {
                 setPosition(engine.getPositions())
               }).catch((err) => { throw err; });
             }).catch((err) => { throw err; });
-          }}}>Join Game</button>
+          }}}>{loading ? "Waiting for other player..." : "Join Game"}</button>
         </div>
         <div style={{marginTop: "10px"}}>
           <a href="https://github.com/sacredSatan/trenchess?tab=readme-ov-file#gameplay-loop" style={{color: "#FFF", textDecoration: "underline"}} target="_blank">How to play? (see the Gameplay Loop section)</a>
