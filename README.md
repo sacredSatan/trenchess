@@ -65,11 +65,13 @@ It started with CLI, but I quickly realized that web is the easiest to iterate o
 It uses peerjs, once I settled on web as the interface, I wanted to use webrtc to make it playable remotely between two players. The goal was to learn to use webrtc, but I just ended up lifting code from one of the example repos, and moved on becase at the time, writing logic for the engine was way more fun. I'll probably revisit webrtc soon.
 
 ## Known issues
-- reverse pawn overwrites tile modifiers like trench/portal
-  - since the tile can only have one modifier at a time
+- ~~reverse pawn overwrites tile modifiers like trench/portal~~
+  - ~~since the tile can only have one modifier at a time~~
+  - I no longer consider this an issue. A tile can only have one modifier, and the latest occupying piece overwrites whatever previously was in there. 
 
 ## Todos
 
 - Instead of the random 6 cards at the beginning of the game, allow players to draw/discard cards after every n moves. 
 - Error handling (your only recourse currently is to reload the page and lost the state)
 - Add tests to ensure that the classic chess implementation is bugfree at least
+- Simple qol improvements like last move indicator, sound etc. But way down in the priority list.
