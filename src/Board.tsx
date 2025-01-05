@@ -175,15 +175,15 @@ const Board: React.FC<BoardProps> = (props) => {
         </div>;
       })}
     </div>
-    <div style={{margin: "10px", border: "1px solid white"}}>
+    <div style={{margin: "10px", padding: "10px", border: "1px solid #ddd"}}>
       {cards.map((card, index) => {
-        console.log(activeModifier, card);
         return <>
-          <button key={card+index} style={{ margin: "5px 10px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => !oldState ? MODIFIER_VALUE_MAP[card] : undefined)}>{MODIFIER_LABEL_MAP[card]}</button>
+          <button key={card+index} style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => !oldState ? MODIFIER_VALUE_MAP[card] : undefined)}>{MODIFIER_LABEL_MAP[card]}</button>
           {index % 2 !== 0 ? <br /> : null}
         </>
       })}
     </div>
+    <p style={{ backgroundColor: "#f0d9b5", color: "#000" }}>Legend: <img style={{position: "relative", top: "2px"}} src="./modifiers/trench.svg"></img> Trench, <img style={{position: "relative", top: "2px"}} src="./modifiers/portal.svg"></img> Portal, <img style={{position: "relative", top: "2px"}} src="./modifiers/reversepawn.svg"></img> Reverse Pawn</p>
     {debug ? 
       (<div>
       <button style={activeModifier === "-1" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "-1" : undefined)}>clear</button>

@@ -44,37 +44,51 @@ function App() {
           <img src="./logo/pawn.svg" width="200" height="200" style={{marginRight: "-129px", marginBottom: "-4px"}} />
           <img src="./logo/spade.svg" width="150" height="150" />
         </div>
-        <input ref={inputRef} type="text" name="peerName" /> <button type="button" disabled={loading} onClick={() => {
-          if(inputRef.current && !loading) {
+        <div>
+        <p>Enter a common passphrase between two players, one to host and the other to join.</p>
+        <p>(You can try it out by hosting and joining on separate tabs)</p>
+        </div>
+        <div>
+          <input style={{padding: "10px"}} ref={inputRef} placeholder="Enter a passpharse" type="text" name="peerName" /> 
+        </div>
+        <div style={{marginTop: "10px"}}>
+          <button type="button" disabled={loading} onClick={() => {
+            if(inputRef.current && !loading) {
+              setLoading(true);
+              const peerId = inputRef.current.value;
+              hostInitialize(peerId).then(() => { setupHostConnection().then(() => { setPeerId(peerId); setLoading(false); }).catch((err) => { throw err; }) });
+          }}}>Host Game</button>
+          <button type="button" disabled={loading} style={{ marginLeft: "10px" }} onClick={() => {
+            if(inputRef.current && !loading) {
+              const peerId = inputRef.current.value;
             setLoading(true);
-            const peerId = inputRef.current.value;
-            hostInitialize(peerId).then(() => { setupHostConnection().then(() => { setPeerId(peerId); setLoading(false); }).catch((err) => { throw err; }) });
-        }}}>Host</button>
-        <button type="button" disabled={loading} onClick={() => {
-          if(inputRef.current && !loading) {
-            const peerId = inputRef.current.value;
-          setLoading(true);
-          clientInitialize().then((peer) => {
-            console.log("initialized peer", peer);
-            clientConnect(peerId).then(() => {
-              setPeerId(peerId); setLoading(false);
-              const initialState = engine.initializeGame();
-              console.log(initialState, "dat=======");
-              getDataConnection()?.send({
-                type: "initial",
-                value: initialState,
-              });
-              setIsWhite(initialState.isWhite);
-              setPosition(engine.getPositions())
+            clientInitialize().then((peer) => {
+              console.log("initialized peer", peer);
+              clientConnect(peerId).then(() => {
+                setPeerId(peerId); setLoading(false);
+                const initialState = engine.initializeGame();
+                console.log(initialState, "dat=======");
+                getDataConnection()?.send({
+                  type: "initial",
+                  value: initialState,
+                });
+                setIsWhite(initialState.isWhite);
+                setPosition(engine.getPositions())
+              }).catch((err) => { throw err; });
             }).catch((err) => { throw err; });
-          }).catch((err) => { throw err; });
-        }}}>Join Host</button>
-        <button type="button" onClick={() => {
-          setDebug(true);
-          engine.initializeGame();
-          setIsWhite(true);
-          setPosition(engine.getPositions())
-        }}>SET DEBUG</button>
+          }}}>Join Game</button>
+        </div>
+        <div style={{marginTop: "10px"}}>
+          <a href="https://github.com/sacredSatan/trenchess?tab=readme-ov-file#gameplay-loop" style={{color: "#FFF", textDecoration: "underline"}} target="_blank">How to play? (see the Gameplay Loop section)</a>
+        </div>
+        <div style={{"marginTop": "80px"}}>
+          <a style={{ color: "rgba(255,255,255,0.1)" }} role="button" onClick={() => {
+            setDebug(true);
+            engine.initializeGame();
+            setIsWhite(true);
+            setPosition(engine.getPositions())
+          }}>SET DEBUG</a>
+        </div>
       </>
     );
   }
@@ -83,9 +97,10 @@ function App() {
   
   return (
     <>
-      <h6>ID: {peerId?.replaceAll(PEER_ID_PREFIX, "")}</h6>
-      <h6>LAST MOVE STATE: {moveState}</h6>
+      <p>Game ID: {peerId?.replaceAll(PEER_ID_PREFIX, "")}</p>
+      <p>{new Set(["CHECKMATE", "STALEMATE", "REPEATDRAW"]).has(moveState.lastMoveState) ? <b>{moveState.lastMoveState}</b> : <>Current Turn: <b>{moveState.currentTurn}</b></>}</p>
       {debug ? <button type="button" onClick={(() => { engine.undoMove(); setPosition(engine.getPositions()) })}>undo move</button> : null}
+      {debug ? <p>Debug mode is to mainly setup and try out positions, it might be broken.</p> : null}
       {/* @ts-expect-error who cares at this point */}
       <Board isWhite={isWhite} debug={debug} cards={isWhite ? cards.whiteCards : cards.blackCards} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
     </>

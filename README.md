@@ -2,14 +2,14 @@
 
 ~~working title~~ 
 
-![trenchess-logo](https://github.com/user-attachments/assets/3aa9b4f2-e18e-4cf4-a8c7-c77e3e53d4ca)
+<img src="https://github.com/user-attachments/assets/3aa9b4f2-e18e-4cf4-a8c7-c77e3e53d4ca" width="175" alt="trenchess logo">
 
 trenchess is regular Chess, with an option to alter the properties of the game by playing various ability cards. 
 
 For those (me) who can't beat someone at regular chess, there's a slightly better chance with this one with the added element of luck. (It's not enough for me though).
 
 ## Gameplay loop
-- each players start with 6 random cards
+- each player starts with 6 random cards
 - playing a card switches turns (could be a potential out for zugzwang)
 - regular game of chess otherwise
 

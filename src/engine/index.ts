@@ -461,7 +461,7 @@ export default class Engine {
       const [piece, modifier] = squareChar.split("");
 
       return [this.indexToPosition(index), [ piece === " " ? undefined : piece, modifier === " " ? undefined : modifier ]];
-    }).filter((a) => !!a)), `${this.lastMoveState} Current Turn: ${turn === 0 ? "WHITE" : "BLACK"}`, cards ]
+    }).filter((a) => !!a)), { lastMoveState: this.lastMoveState, currentTurn: turn === 0 ? "WHITE" : "BLACK" }, cards ]
   }
 
   move(notation: string, options?: { skipCommit: boolean; state?: number[]; skipCheckMate?: boolean; skipStaleMate?: boolean; }): MOVE_RETURN_VALUES {
