@@ -536,7 +536,7 @@ export default class Engine {
       } else if(currentModifier) {
         return MOVE_RETURN_VALUES.INVALID;
       } else {
-        if(modifierValue === TILE_MODIFIERS.TRENCH || modifierValue === TILE_MODIFIERS.REVERSE_PAWN) {
+        if(modifierValue === TILE_MODIFIERS.TRENCH) {
           if(isInitiallyWhiteTurn && currentPieceWColour !== (PIECES.WHITE | PIECES.PAWN)) {
             return MOVE_RETURN_VALUES.INVALID;
           }
@@ -544,6 +544,9 @@ export default class Engine {
           if(!isInitiallyWhiteTurn && currentPieceWColour !== (PIECES.BLACK | PIECES.PAWN)) {
             return MOVE_RETURN_VALUES.INVALID;
           }
+        }
+        if(modifierValue === TILE_MODIFIERS.REVERSE_PAWN && currentPiece !== PIECES.PAWN) {
+          return MOVE_RETURN_VALUES.INVALID;
         }
         nextState[targetIndex] = currentPieceWColour | modifierValue;
       }

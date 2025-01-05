@@ -35,7 +35,9 @@ Just removes applied effect from a tile/piece.
 
 ## Why and How
 
-Why is straightforward, I like making games. The idea for this game initially involved me learning to use 3d modelling in order to make a chess board where you can slide out squares like a sliding puzzle, or add things to the board, actually "physically" modifying the battleground. 
+Why is straightforward, I like making games. My brother plays Chess, and I'm never going to beat him in regular chess. Adding an element of luck would potentially even the odds. It was nowhere close.
+
+The idea for this game initially involved me learning to use 3d modelling in order to make a chess board where you can slide out squares like a sliding puzzle, or add things to the board, actually "physically" modifying the battleground. 
 
 It was too far away, so this project started as a temporary measure, to figure out game logic while I learned to do 3d modelling. 
 
@@ -56,7 +58,11 @@ It started with CLI, but I quickly realized that web is the easiest to iterate o
 ### p2p
 It uses peerjs, once I settled on web as the interface, I wanted to use webrtc to make it playable remotely between two players. The goal was to learn to use webrtc, but I just ended up lifting code from one of the example repos, and moved on becase at the time, writing logic for the engine was way more fun. I'll probably revisit webrtc soon.
 
-## Potential Todos
+## Known issues
+- reverse pawn overwrites tile modifiers like trench/portal
+  - since the tile can only have one modifier at a time
+
+## Todos
 
 - Instead of the random 6 cards at the beginning of the game, allow players to draw/discard cards after every n moves. 
 - Error handling (your only recourse currently is to reload the page and lost the state)
