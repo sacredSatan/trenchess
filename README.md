@@ -17,7 +17,9 @@ For those (me) who can't beat someone at regular chess, there's a slightly bette
 
 ### Trench
 
-Dig a trench with a pawn, allowing no pieces to cross (except the Knight). Moving the pawn removes trench.
+Dig a trench with a pawn, allowing no pieces to cross or occupy (except the Knight). Moving the pawn removes trench.
+
+![trench in action](https://github.com/user-attachments/assets/7b7b473a-efe3-4445-b8a2-9022e4290ac2)
 
 ### Reverse Pawn
 
@@ -29,9 +31,13 @@ This is my favourite card, it basically reverses the direction a pawn moves in. 
 
 This works more like a tunnel, you pick squares to be the openings and any piece able to move to such squares can come out from any of the other openings.
 
+![portal in action](https://github.com/user-attachments/assets/70b900bc-63e3-49b1-b75d-767b879fd1a8)
+
 ### Clear
 
 Just removes applied effect from a tile/piece.
+
+![clear in action](https://github.com/user-attachments/assets/95ceef7d-f878-4796-b623-93cbccffb39c)
 
 ## Why and How
 

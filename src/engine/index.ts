@@ -588,8 +588,11 @@ export default class Engine {
 
       const toSquare = state[toSquareIndex];
       const toSquarePieceWColour = toSquare & BOARD_MASKS.PIECE_W_COLOUR;
+      nextState[toSquareIndex] = fromSquarePieceWColour;
       const toSquareModifiers = toSquare & BOARD_MASKS.MODIFIERS;
-      nextState[toSquareIndex] = fromSquarePieceWColour | toSquareModifiers;
+      if(toSquareModifiers !== TILE_MODIFIERS.TRENCH && toSquareModifiers !== TILE_MODIFIERS.REVERSE_PAWN) {
+        nextState[toSquareIndex] |= toSquareModifiers;
+      }
       nextState[fromSquareIndex] = fromSquareModifiers;
 
       const WHITE_PROMOTION_ROW = "abcdefgh".split("").map((col) => `${col}8`);
