@@ -23,7 +23,7 @@ Dig a trench with a pawn, allowing no pieces to cross or occupy (except the Knig
 
 ### Reverse Pawn
 
-This is my favourite card, it basically reverses the direction a pawn moves in. The reversed pawn can no longer be promoted.
+This is my favourite card, it basically reverses the direction a pawn moves in. The reversed pawn can no longer be promoted (since it'll never reach the opponent's back rank).
 
 ![reverse pawn in action](https://github.com/user-attachments/assets/bdafe5bc-6ccf-4799-8343-d9588c17f444)
 
@@ -47,7 +47,7 @@ The idea for this game initially involved me learning to use 3d modelling in ord
 
 It was too far away, so this project started as a temporary measure, to figure out game logic while I learned to do 3d modelling. 
 
-The engine is not a traditional chess engine, that predicts best moves, and evaluates game position. I'm not skilled enough to write that, but I've kept myself from reading up about writing chess engines because I wanted to come up with solutions to everything myself. 
+The engine is not a traditional chess engine that predicts best moves, and evaluates game position. I'm not skilled enough to write that, but I've kept myself from reading up about writing chess engines because I wanted to come up with solutions to everything myself. 
 
 ## State of the release
 
