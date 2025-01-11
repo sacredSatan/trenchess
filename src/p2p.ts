@@ -99,7 +99,8 @@ export const hostInitialize = (peerId: string) => {
             console.log('Received null id from peer open');
             // @ts-expect-error following an example
             peer.id = lastPeerId;
-        } else {
+          } else {
+            console.log({ lastPeerId, peerId: peer.id })
             lastPeerId = peer.id;
         }
         
@@ -132,11 +133,13 @@ export const hostInitialize = (peerId: string) => {
 export const setupHostConnection = () => {
   return new Promise((resolve, reject) => {
     peer.on('connection', function (c) {
+      console.log(c, "ON CONNECTION!!");
       // Allow only a single connection
       if (conn && conn.open) {
           c.on('open', function() {
               c.send("Already connected to another client");
-              setTimeout(function() { c.close(); }, 500);
+              console.log("ALREADY CONNECTED, DISCONNECT!!");
+              setTimeout(function() { c.close(); });
           });
           return;
       }

@@ -4,7 +4,7 @@
 
 <img src="https://github.com/user-attachments/assets/3aa9b4f2-e18e-4cf4-a8c7-c77e3e53d4ca" width="175" alt="trenchess logo">
 
-trenchess is regular Chess, with an option to alter the properties of the game by playing various ability cards. 
+trenchess is regular chess, with an option to alter the properties of the game by playing various ability cards.
 
 For those (me) who can't beat someone at regular chess, there's a slightly better chance with this one with the added element of luck. (It's not enough for me though).
 
@@ -23,7 +23,7 @@ Dig a trench with a pawn, allowing no pieces to cross or occupy (except the Knig
 
 ### Reverse Pawn
 
-This is my favourite card, it basically reverses the direction a pawn moves in. The reversed pawn can no longer be promoted (since it'll never reach the opponent's back rank).
+This is my favourite card, it basically reverses the direction a pawn moves in. The reversed pawn can no longer be promoted (since it'll never reach the opponent's back rank). Initially my idea was for the pawn to switch directions after it reaches its own backrank (as in, a white pawn on e, reaches e1), so essentially "promoting" it to be a regular pawn. But I think this version is good enough.
 
 ![reverse pawn in action](https://github.com/user-attachments/assets/bdafe5bc-6ccf-4799-8343-d9588c17f444)
 
@@ -41,13 +41,13 @@ Just removes applied effect from a tile/piece.
 
 ## Why and How
 
-Why is straightforward, I like making games. My brother plays Chess, and I'm never going to beat him in regular chess. Adding an element of luck would potentially even the odds. It was nowhere close.
+Why is straightforward, I like making games. My brother plays chess, and I'm never going to beat him in regular chess. I thought adding an element of luck would even the odds, but it was nowhere close.
 
 The idea for this game initially involved me learning to use 3d modelling in order to make a chess board where you can slide out squares like a sliding puzzle, or add things to the board, actually "physically" modifying the battleground. 
 
-It was too far away, so this project started as a temporary measure, to figure out game logic while I learned to do 3d modelling. 
+It was too far away, so this project started as a temporary measure, to figure out game logic while I learned to do 3d modelling. I ended up dropping my plans to learn 3d modelling, but I did make donuts. I might go back to it but it probably won't happen any time soon.
 
-The engine is not a traditional chess engine that predicts best moves, and evaluates game position. I'm not skilled enough to write that, but I've kept myself from reading up about writing chess engines because I wanted to come up with solutions to everything myself. 
+The engine is not a traditional chess engine that predicts best moves, and evaluates game position. I'm not skilled enough to write that, but I've kept myself from reading up about writing chess engines because I wanted to come up with solutions to everything myself.
 
 ## State of the release
 
@@ -56,7 +56,7 @@ The initial gameplay loop is complete. This is my most complete game releases in
 You'll probably encounter bugs, I haven't even tested it other than just playing a bunch of games. 
 
 ### Engine
-The code's probably unreadable. I've abandoned ideas in the middle, done the same thing multiple ways, etc. The implementation is not optimal, I just did what I could come up with. I'd make use of external resources next time.
+The code's probably unreadable. I've abandoned ideas in the middle, done the same thing multiple ways, etc. The implementation is not optimal, I just did what I could come up with. I'd make use of external resources next time, as I've finished one reference free implementation already. If I were to implement an engine again, I'd learn about how actual engines that can evaluate positions are made, and probably do it in a language that I'm not yet familiar with.
 
 ### Frontend
 It started with CLI, but I quickly realized that web is the easiest to iterate on for me. I initially supported drag and drop etc, but it became too tedious. 
@@ -72,6 +72,6 @@ It uses peerjs, once I settled on web as the interface, I wanted to use webrtc t
 ## Todos
 
 - Instead of the random 6 cards at the beginning of the game, allow players to draw/discard cards after every n moves. 
-- Error handling (your only recourse currently is to reload the page and lost the state)
+- Error handling (your only recourse currently is to reload the page and lose the state)
 - Add tests to ensure that the classic chess implementation is bugfree at least
 - Simple qol improvements like last move indicator, sound etc. But way down in the priority list.

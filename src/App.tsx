@@ -11,8 +11,25 @@ function App() {
   const [ [ position, moveState, cards ], setPosition ] = useState(engine.getPositions());
   const [ isWhite, setIsWhite ] = useState<boolean | null>(null);
   const [ loading, setLoading ] = useState(false);
-  const [ peerId, setPeerId ] = useState<string>();
   const [ debug, setDebug ] = useState(false);
+  const [ peerId, setPeerId ] = useState<string>();
+  const isHost = useRef<boolean>();
+
+  const [ , urlPeerId ] = location.search.split("?join=");
+  console.log({urlPeerId, split: location.search.split("?join=")});
+  if(location.search) {
+    sessionStorage.setItem("__trenchessTmpGameId", urlPeerId);
+    location.search = "";
+  }
+
+  const resetGame = () => {
+    engine.resetState()
+    setPosition(engine.getPositions());
+    setIsWhite(null);
+    setLoading(false);
+    setDebug(false);
+    setPeerId("");
+  };
   
   useEffect(() => {
     if(peerId) {
@@ -33,9 +50,45 @@ function App() {
             }
           }
         });
+
+        connection.on("close", () => {
+          if(isHost.current) {
+            alert("connection closed,  maybe peer left.");
+          } else {
+            alert("connection closed, host left or likely has a client already connected to it.");
+          }
+          resetGame();
+        });
       }
     }
   }, [ peerId ]);
+
+  const joinHandler = (peerId: string) => {
+    console.log("joinehandler");
+    setLoading(true);
+    sessionStorage.removeItem("__trenchessTmpGameId");
+    clientInitialize().then((peer) => {
+      console.log("initialized peer", peer);
+      clientConnect(peerId).then(() => {
+        setPeerId(peerId); setLoading(false);
+        const initialState = engine.initializeGame();
+        console.log(initialState, "dat=======");
+        getDataConnection()?.send({
+          type: "initial",
+          value: initialState,
+        });
+        setIsWhite(initialState.isWhite);
+        setPosition(engine.getPositions())
+      }).catch((err) => { throw err; });
+    }).catch((err) => { throw err; });
+  };
+
+  useEffect(() => {
+    const tmpGameId = sessionStorage.getItem("__trenchessTmpGameId");
+    if(tmpGameId) {
+      joinHandler(tmpGameId);
+    }
+  }, []);
   
   if(!peerId && !debug) {
     return (
@@ -49,33 +102,24 @@ function App() {
         <p>(You can try it out by hosting and joining on separate tabs)</p>
         </div>
         <div>
-          <input style={{padding: "10px"}} ref={inputRef} placeholder="Enter a passpharse" type="text" name="peerName" /> 
+          <input style={{padding: "10px"}} ref={inputRef} placeholder="Enter a passpharse" type="text" name="peerName" disabled={loading} />
+        </div>
+        <div>
+          {loading ? <p>Share this link with 2nd player, or try it out yourself in a new tab: <a href={`${location.origin}${location.pathname}?join=${inputRef.current?.value}`} style={{color: "#FFF", textDecoration: "underline"}} target="_blank">{`${location.origin}${location.pathname}?join=${inputRef.current?.value}`}</a></p> : null}
         </div>
         <div style={{marginTop: "10px"}}>
           <button type="button" disabled={loading} style={{pointerEvents: loading ? "none" : "auto"}} onClick={() => {
             if(inputRef.current && !loading) {
               setLoading(true);
+              isHost.current = true;
               const peerId = inputRef.current.value;
               hostInitialize(peerId).then(() => { setupHostConnection().then(() => { setPeerId(peerId); setLoading(false); }).catch((err) => { throw err; }) });
           }}}>{loading ? "Waiting for other player..." : "Host Game"}</button>
           <button type="button" disabled={loading} style={{ marginLeft: "10px", pointerEvents: loading ? "none" : "auto" }} onClick={() => {
             if(inputRef.current && !loading) {
               const peerId = inputRef.current.value;
-            setLoading(true);
-            clientInitialize().then((peer) => {
-              console.log("initialized peer", peer);
-              clientConnect(peerId).then(() => {
-                setPeerId(peerId); setLoading(false);
-                const initialState = engine.initializeGame();
-                console.log(initialState, "dat=======");
-                getDataConnection()?.send({
-                  type: "initial",
-                  value: initialState,
-                });
-                setIsWhite(initialState.isWhite);
-                setPosition(engine.getPositions())
-              }).catch((err) => { throw err; });
-            }).catch((err) => { throw err; });
+              isHost.current = false;
+              joinHandler(peerId);
           }}}>{loading ? "Waiting for other player..." : "Join Game"}</button>
         </div>
         <div style={{marginTop: "10px"}}>
