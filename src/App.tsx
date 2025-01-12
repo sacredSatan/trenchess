@@ -105,7 +105,7 @@ function App() {
           <input style={{padding: "10px"}} ref={inputRef} placeholder="Enter a passpharse" type="text" name="peerName" disabled={loading} />
         </div>
         <div>
-          {loading ? <p>Share this link with 2nd player, or try it out yourself in a new tab: <a href={`${location.origin}${location.pathname}?join=${inputRef.current?.value}`} style={{color: "#FFF", textDecoration: "underline"}} target="_blank">{`${location.origin}${location.pathname}?join=${inputRef.current?.value}`}</a></p> : null}
+          {(loading && isHost.current) ? <p>Share this link with 2nd player, or try it out yourself in a new tab: <a href={`${location.origin}${location.pathname}?join=${inputRef.current?.value}`} style={{color: "#FFF", textDecoration: "underline"}} target="_blank">{`${location.origin}${location.pathname}?join=${inputRef.current?.value}`}</a></p> : null}
         </div>
         <div style={{marginTop: "10px"}}>
           <button type="button" disabled={loading} style={{pointerEvents: loading ? "none" : "auto"}} onClick={() => {

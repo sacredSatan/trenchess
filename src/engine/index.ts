@@ -265,13 +265,15 @@ const GAME_STATE_INDEX = 64;
 const WHITE_CARDS_INDEX = 65;
 const BLACK_CARDS_INDEX = 66;
 
+const STATE_FOR_PORTAL_BUG = [10,12,11,0,14,11,12,10,9,9,9,233,0,0,9,9,0,0,0,0,0,64,0,0,0,0,0,0,9,0,0,0,0,0,0,73,241,49,0,13,0,0,0,17,0,0,17,0,17,17,17,0,0,0,0,17,18,20,19,21,22,19,20,18,126,819,17473];
+
 export default class Engine {
   private stateHistory: number[][];
   private positionCountMap: Map<string, number>;
   private lastMoveState: string;
 
   constructor(initialState?: number[]) {
-    this.stateHistory = [initialState ?? DEFAULT_STATE ?? STATE_FOR_CASTLE_BUG ?? STATE_FOR_TRENCH_TEST ?? STATE_FOR_PORTAL_TEST ?? STATE_FOR_CHECKMATE_BUG ?? STATE_FOR_ILLEGAL_MATE_TEST ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
+    this.stateHistory = [initialState ?? DEFAULT_STATE ?? STATE_FOR_PORTAL_BUG ?? STATE_FOR_CASTLE_BUG ?? STATE_FOR_TRENCH_TEST ?? STATE_FOR_PORTAL_TEST ?? STATE_FOR_CHECKMATE_BUG ?? STATE_FOR_ILLEGAL_MATE_TEST ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
     this.positionCountMap = new Map();
     this.lastMoveState = MOVE_RETURN_VALUES_MAP[MOVE_RETURN_VALUES.MOVE];
   }
@@ -1254,14 +1256,17 @@ export default class Engine {
     });
 
     if(hasPortal) {
+      const collisionPieces = ALL_PIECES.difference(targetPieces ?? new Set());
       const allPortalSquareIndexes = state.slice(0, GAME_STATE_INDEX).map((_square, index) => {
         const modifier = this.extractModifierFromSquareIndex(index, state);
         return modifier === TILE_MODIFIERS.PORTAL ? index : null;
       }).filter(Boolean) as number[];
 
       allPortalSquareIndexes.forEach((index) => {
-        squareIndexSet.add(index);
         const pieceWColour = this.extractPieceWColourFromSquareIndex(index, state);
+        if(!collisionPieces.has(pieceWColour)) {
+          squareIndexSet.add(index);
+        }
         if(targetPieces?.has(pieceWColour)) {
           targetIndexSet.add(index);
         }
