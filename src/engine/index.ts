@@ -249,6 +249,8 @@ const STATE_FOR_PORTAL_TEST =  [22,0,0,0,0,0,0,14,0,0,0,64,0,0,0,0,0,0,0,0,0,0,0
 const STATE_FOR_TRENCH_TEST = [ 14, 0, 0, 0, 0, 0, 0, 22, 49, 49, 0, 0, 0, 0, 49, 17, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127];
 const STATE_FOR_CASTLE_BUG = [10,12,0,13,14,0,0,10,9,0,9,9,9,9,0,9,0,9,0,0,0,12,9,0,0,20,0,0,0,0,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,17,19,17,17,17,17,19,17,18,0,0,21,22,0,0,18,127];
 
+const ALL_CARDS = [ CARDS.CLEAR_MODIFIER, CARDS.PORTAL, CARDS.TRENCH, CARDS.REVERSE_PAWN ];
+
 type SkipModifiersOptions = {
   skipAll?: boolean;
   skipPortal?: boolean;
@@ -259,11 +261,17 @@ type InitialState = {
   isWhite: boolean;
   whiteCards: number;
   blackCards: number;
+  whiteCardDrawCounter: number;
+  blackCardDrawCounter: number;
 };
 
 const GAME_STATE_INDEX = 64;
 const WHITE_CARDS_INDEX = 65;
 const BLACK_CARDS_INDEX = 66;
+const WHITE_CARD_DRAW_COUNTER_INDEX = 67;
+const BLACK_CARD_DRAW_COUNTER_INDEX = 68;
+
+const CARD_DRAW_COUNTER_INITIAL_VALUE = 4;
 
 const STATE_FOR_PORTAL_BUG = [10,12,11,0,14,11,12,10,9,9,9,233,0,0,9,9,0,0,0,0,0,64,0,0,0,0,0,0,9,0,0,0,0,0,0,73,241,49,0,13,0,0,0,17,0,0,17,0,17,17,17,0,0,0,0,17,18,20,19,21,22,19,20,18,126,819,17473];
 
@@ -286,6 +294,10 @@ export default class Engine {
     this.stateHistory.push(state);
   }
 
+  replaceState(state: number[]) {
+    this.stateHistory[this.stateHistory.length - 1] = state;
+  }
+
   buildCardNumber(cards: number[]) {
     let cardNumber = 0;
     cards.forEach(card => {
@@ -301,15 +313,21 @@ export default class Engine {
       isWhite: Math.random() < Math.random(),
       whiteCards: 0,
       blackCards: 0,
+      whiteCardDrawCounter: CARD_DRAW_COUNTER_INITIAL_VALUE,
+      blackCardDrawCounter: CARD_DRAW_COUNTER_INITIAL_VALUE,
     };
 
-    if(!initialState) {
-      const availableCards = [ CARDS.CLEAR_MODIFIER, CARDS.PORTAL, CARDS.TRENCH, CARDS.REVERSE_PAWN ];
-      state.whiteCards = this.buildCardNumber(new Array(6).fill(undefined).map(() => availableCards[Math.floor(Math.random() * availableCards.length)]));
-      state.blackCards = this.buildCardNumber(new Array(6).fill(undefined).map(() => availableCards[Math.floor(Math.random() * availableCards.length)]));
+    // it'll be an issue if initial state is actually one where all cards have been spent
+    if(!initialState || (initialState && !initialState.whiteCards && !initialState.blackCards)) {
+      // since you can draw cards now, initially just both players 4 cards
+      // then every 4 moves you can draw 2 cards, max capped at 6
+      // state.whiteCards = this.buildCardNumber(new Array(6).fill(undefined).map(() => availableCards[Math.floor(Math.random() * availableCards.length)]));
+      // state.blackCards = this.buildCardNumber(new Array(6).fill(undefined).map(() => availableCards[Math.floor(Math.random() * availableCards.length)]));
+      state.whiteCards = this.buildCardNumber(ALL_CARDS);
+      state.blackCards = this.buildCardNumber(ALL_CARDS);
     }
 
-    this.stateHistory = [ [ ...DEFAULT_STATE, state.whiteCards, state.blackCards ] ];
+    this.stateHistory = [ [ ...DEFAULT_STATE, state.whiteCards, state.blackCards, state.whiteCardDrawCounter, state.blackCardDrawCounter ] ];
     return state;
   }
 
@@ -357,7 +375,26 @@ export default class Engine {
     return {
       whiteCards,
       blackCards,
+      whiteCardDrawCounter: (state || this.state)?.at(WHITE_CARD_DRAW_COUNTER_INDEX) ?? CARD_DRAW_COUNTER_INITIAL_VALUE,
+      blackCardDrawCounter: (state || this.state)?.at(BLACK_CARD_DRAW_COUNTER_INDEX) ?? CARD_DRAW_COUNTER_INITIAL_VALUE,
     }
+  }
+
+  getRandomCards(count = 2) {
+    return new Array(count).fill(undefined).map(() => MODIFIER_CHAR[CARD_TO_TILE_MODIFIERS_MAP[ALL_CARDS[Math.floor(Math.random() * ALL_CARDS.length)]]]);
+  }
+
+  applyCardSelection(selectedCards: string[], _state?: number[]) {
+    const state = _state || this.state;
+    const nextState = [...state];
+    const gameState = this.getGameState(state);
+    const cardIndex = gameState.turn === GAME_STATE.WHITE_TURN ? WHITE_CARDS_INDEX : BLACK_CARDS_INDEX;
+    const cardDrawCountIndex = gameState.turn === GAME_STATE.WHITE_TURN ? WHITE_CARD_DRAW_COUNTER_INDEX : BLACK_CARD_DRAW_COUNTER_INDEX;
+    const cardsNumber = this.buildCardNumber(selectedCards.map((card) => TILE_MODIFIERS_TO_CARD_MAP[CHAR_TO_MODIFIER_MAP[card]]));
+    nextState[cardIndex] = cardsNumber;
+    nextState[cardDrawCountIndex] = CARD_DRAW_COUNTER_INITIAL_VALUE;
+    // replace state because I don't want this to count towards repeatdraw
+    this.replaceState(nextState);
   }
   
   getCurrentTurn(state?: number[]) {
@@ -818,6 +855,11 @@ export default class Engine {
     }
   
     if(!skipCommit) {
+      if(isInitiallyWhiteTurn) {
+        nextState[WHITE_CARD_DRAW_COUNTER_INDEX] = nextState[WHITE_CARD_DRAW_COUNTER_INDEX] - 1;
+      } else {
+        nextState[BLACK_CARD_DRAW_COUNTER_INDEX] = nextState[BLACK_CARD_DRAW_COUNTER_INDEX] - 1;
+      }
       this.state = nextState;
       console.log(this.state, "STATE");
     }

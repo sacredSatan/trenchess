@@ -1,4 +1,4 @@
-import { useRef, useState, Fragment } from 'react';
+import { useRef, useState, Fragment, useMemo } from 'react';
 import Engine from './engine/index';
 import { DataConnection } from 'peerjs';
 
@@ -10,6 +10,7 @@ type BoardProps = {
   connection: DataConnection | null;
   cards: string[];
   debug: boolean;
+  cardDrawCounter: number;
 }
 
 const gridStyle = { 
@@ -32,6 +33,17 @@ const promotionGridStyle = {
   position: "absolute" as const,
   zIndex: 1,
   background: "rgba(0,0,0,0.5)",
+};
+
+const drawCardGridStyle = {
+  width: "50vw",
+  maxWidth: "600px", 
+  minWidth: "400px",
+  position: "absolute" as const,
+  zIndex: 1,
+  background: "rgba(0,0,0,0.5)",
+  top: 0,
+  bottom: 0,
 };
 
 const activeButtonStyle = {
@@ -70,17 +82,22 @@ const pieceStyle = { position: "absolute" as const, top: 0, bottom: 0, width: "1
 const PIECE_CHARS = ["k", "q", "r", "b", "n", "p"].map((c) => [ c.toUpperCase(), c ]).flat();
 
 const Board: React.FC<BoardProps> = (props) => {
-  const { position, setPosition, engine, connection, isWhite, cards, debug } = props;
+  const { position, setPosition, engine, connection, isWhite, cards, debug, cardDrawCounter } = props;
   const activePosition = useRef<string>();
   const [ movableSquares, setMovableSquares ] = useState<Set<number>>();
   const [ promotionMove, setPromotionMove ] = useState<string>();
   const [ activeModifier, setActiveModifier ] = useState<string>();
+  const [ selectedCards, setSelectedCards ] = useState<number[]>([]);
 
+  const drawCardSelection = useMemo(() => {
+    return [ ...cards, ...engine.getRandomCards() ];
+  }, [ cards, engine ]);
   console.log(position, "pos");
 
   console.log(activeModifier, "MOD");
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const currentTurn = isWhite ? engine.getCurrentTurn() === "white" : engine.getCurrentTurn() === "black";
   
   return <>
     {promotionMove ? (<div style={{...promotionGridStyle}}>
@@ -101,6 +118,26 @@ const Board: React.FC<BoardProps> = (props) => {
       })}
     </div>) : null}
     <div style={{ ...gridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }} ref={containerRef}>
+      {(cardDrawCounter === 0 && currentTurn) ? <div style={{...drawCardGridStyle}}>
+        <span>Select up to 4 cards to keep</span>
+        <div style={{ border: "1px solid #ddd", padding: "10px" }}>
+        {drawCardSelection.map((card, index) => {
+          return <Fragment key={card+index}>
+            <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent", ...(selectedCards.includes(index) ? activeButtonStyle : {}) }} onClick={() => setSelectedCards((oldState) => !oldState.includes(index) ? [ ...oldState, index ] : oldState.filter((c) => c !== index))}>{MODIFIER_LABEL_MAP[card]}</button>
+            {index % 2 !== 0 ? <br /> : null}
+          </Fragment>
+        })}
+        </div>
+        <div>
+          <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent"}}
+            disabled={!((drawCardSelection.length === selectedCards.length) || selectedCards.length === 4)} onClick={() => {
+            console.log("selection", selectedCards.map((index) => drawCardSelection[index]));
+            engine.applyCardSelection(selectedCards.map((index) => drawCardSelection[index]));
+            setPosition(engine.getPositions());
+            setSelectedCards([]);
+          }}>Confirm Selection</button>
+        </div>
+      </div> : null}
       {new Array(64).fill(undefined).map((_, index) => {
         // index 0 here = a8, index 7 = h8, index 8 = a7
         // need to transform the index number to draw piece in the correct square
@@ -169,7 +206,7 @@ const Board: React.FC<BoardProps> = (props) => {
           }
         }}>
           <div style={{ color: "black", position: "absolute", bottom: 0, left: 0, fontSize: 10, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}>{positionName}</div>
-          <div style={{ color: "black", position: "absolute", top: 0, left: 0, fontSize: 10, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}>{normalizedIndex}</div>
+          {debug ? <div style={{ color: "black", position: "absolute", top: 0, left: 0, fontSize: 10, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}>{normalizedIndex}</div> : null}
           <div style={{ position: "absolute", bottom: 0, right: 0, fontSize: 10, transform: `rotate(${isWhite ? "0deg" : "180deg"})`, width: 15, height: 15, backgroundImage: `url(./modifiers/${modifierImage})`, backgroundSize: "contain", }}></div>
           {piece ? <div style={{ ...pieceStyle, backgroundImage: `url(./pieces/${pieceImageName}.svg)`, backgroundSize: "contain", transform: `rotate(${isWhite ? "0deg" : "180deg"})` }}></div>: null}
         </div>;

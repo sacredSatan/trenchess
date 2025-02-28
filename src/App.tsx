@@ -143,10 +143,11 @@ function App() {
     <>
       <p>Game ID: {peerId?.replaceAll(PEER_ID_PREFIX, "")}</p>
       <p>{new Set(["CHECKMATE", "STALEMATE", "REPEATDRAW"]).has(moveState.lastMoveState) ? <b>{moveState.lastMoveState}</b> : <>Current Turn: <b>{moveState.currentTurn}</b></>}</p>
+      <p>Moves till card draw: {isWhite ? cards.whiteCardDrawCounter : cards.blackCardDrawCounter}</p>
       {debug ? <button type="button" onClick={(() => { engine.undoMove(); setPosition(engine.getPositions()) })}>undo move</button> : null}
       {debug ? <p>Debug mode is to mainly setup and try out positions, it might be broken.</p> : null}
       {/* @ts-expect-error who cares at this point */}
-      <Board isWhite={isWhite} debug={debug} cards={isWhite ? cards.whiteCards : cards.blackCards} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
+      <Board isWhite={isWhite} debug={debug} cardDrawCounter={isWhite ? cards.whiteCardDrawCounter : cards.blackCardDrawCounter} cards={isWhite ? cards.whiteCards : cards.blackCards} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
     </>
   )
 }
