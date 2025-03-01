@@ -9,7 +9,8 @@ trenchess is regular chess, with an option to alter the properties of the game b
 For those (me) who can't beat someone at regular chess, there's a slightly better chance with this one with the added element of luck. (It's not enough for me though).
 
 ## Gameplay loop
-- each player starts with 6 random cards
+- each player starts with 4 cards (one of each type)
+- every 4 moves they get an option to select upto 4 cards from 2 random cards + cards in hand
 - playing a card switches turns (could be a potential out for zugzwang)
 - regular game of chess otherwise
 
@@ -71,7 +72,8 @@ It uses peerjs, once I settled on web as the interface, I wanted to use webrtc t
 
 ## Todos
 
-- Instead of the random 6 cards at the beginning of the game, allow players to draw/discard cards after every n moves. 
+- ~~Instead of the random 6 cards at the beginning of the game, allow players to draw/discard cards after every n moves.~~
+  - players now start with one card of each type (4 total), and every 4 moves they get an option to select upto 4 cards, from 2 random cards + the cards already in their hand.
 - Error handling (your only recourse currently is to reload the page and lose the state)
 - Add tests to ensure that the classic chess implementation is bugfree at least
 - Simple qol improvements like last move indicator, sound etc. But way down in the priority list.
