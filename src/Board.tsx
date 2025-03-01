@@ -1,5 +1,5 @@
 import { useRef, useState, Fragment, useMemo } from 'react';
-import Engine from './engine/index';
+import Engine, { MOVE_RETURN_VALUES_MAP } from './engine/index';
 import { DataConnection } from 'peerjs';
 
 type BoardProps = {
@@ -107,18 +107,21 @@ const Board: React.FC<BoardProps> = (props) => {
         const pieceImageName = isWhite ? "w" + piece : "b" + piece;
         return <div key={piece} style={squareStyle} onClick={() => {
           const move = promotionMove + " " + piece;
-          if(engine.move(move) > 1) {
+          const moveValue = engine.move(move);
+          if(moveValue > 1) {
             connection?.send(move);
             setPosition(engine.getPositions());
             setMovableSquares(undefined);
             activePosition.current = undefined;
             setPromotionMove(undefined);
+          } else {
+            alert(MOVE_RETURN_VALUES_MAP[moveValue]);
           }
         }}><div style={{ ...pieceStyle, backgroundImage: `url(./pieces/${pieceImageName}.svg)`, backgroundSize: "contain" }}></div></div>;
       })}
     </div>) : null}
     <div style={{ ...gridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }} ref={containerRef}>
-      {(cardDrawCounter === 0 && currentTurn) ? <div style={{...drawCardGridStyle}}>
+      {(cardDrawCounter === 0 && currentTurn) ? <div style={{...drawCardGridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})`}}>
         <span>Select up to 4 cards to keep</span>
         <div style={{ border: "1px solid #ddd", padding: "10px" }}>
         {drawCardSelection.map((card, index) => {
@@ -162,11 +165,14 @@ const Board: React.FC<BoardProps> = (props) => {
               return;
             }
             const move = `ADD_MODIFIER_${isWhite ? "WHITE" : "BLACK"} ${positionName} ${activeModifier}`;
-            if(engine.move(move) > 1) {
+            const moveValue = engine.move(move);
+            if(moveValue > 1) {
               setActiveModifier(undefined);
               setPosition(engine.getPositions());
               connection?.send(move);
               setPosition(engine.getPositions());
+            } else {
+              alert(MOVE_RETURN_VALUES_MAP[moveValue]);
             }
             return;
           }
@@ -184,12 +190,14 @@ const Board: React.FC<BoardProps> = (props) => {
                 activePosition.current = undefined;
                 return;
               }
-              if(engine.move(move) > 1) {
+              const moveValue = engine.move(move);
+              if(moveValue > 1) {
                 connection?.send(move);
                 setPosition(engine.getPositions());
                 setMovableSquares(undefined);
                 activePosition.current = undefined;
               } else {
+                alert(MOVE_RETURN_VALUES_MAP[moveValue]);
                 setMovableSquares(undefined);
                 activePosition.current = undefined;
               }
