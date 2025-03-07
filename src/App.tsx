@@ -23,7 +23,7 @@ function App() {
   }
 
   const resetGame = () => {
-    engine.resetState()
+    engine.resetState();
     setPosition(engine.getPositions());
     setIsWhite(null);
     setLoading(false);
@@ -43,7 +43,11 @@ function App() {
             engine.initializeGame(d.value);
             // @ts-expect-error not typing d
             setIsWhite(!d.value.isWhite);
-            setPosition(engine.getPositions())
+            setPosition(engine.getPositions());
+            // @ts-expect-error not typing d
+          } else if (d.type === "applyCards") {
+            // @ts-expect-error not typing d
+            engine.applyCardSelection(JSON.parse(d.value));
           } else {
             if(engine.move(d as string) > 1) {
               setPosition(engine.getPositions());
@@ -78,7 +82,7 @@ function App() {
           value: initialState,
         });
         setIsWhite(initialState.isWhite);
-        setPosition(engine.getPositions())
+        setPosition(engine.getPositions());
       }).catch((err) => { throw err; });
     }).catch((err) => { throw err; });
   };

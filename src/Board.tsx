@@ -135,7 +135,9 @@ const Board: React.FC<BoardProps> = (props) => {
           <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent"}}
             disabled={!((drawCardSelection.length === selectedCards.length) || selectedCards.length === 4)} onClick={() => {
             console.log("selection", selectedCards.map((index) => drawCardSelection[index]));
-            engine.applyCardSelection(selectedCards.map((index) => drawCardSelection[index]));
+            const selectedCardValues = selectedCards.map((index) => drawCardSelection[index]);
+            engine.applyCardSelection(selectedCardValues);
+            connection?.send({ type: "applyCards", value: JSON.stringify(selectedCardValues) });
             setPosition(engine.getPositions());
             setSelectedCards([]);
           }}>Confirm Selection</button>
