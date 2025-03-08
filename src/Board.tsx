@@ -1,3 +1,4 @@
+import { gzip, deflate } from "pako";
 import { useRef, useState, Fragment, useMemo } from 'react';
 import Engine, { MOVE_RETURN_VALUES_MAP } from './engine/index';
 import { DataConnection } from 'peerjs';
@@ -28,6 +29,8 @@ const moveHistoryGridStyle = {
   maxWidth: "400px", 
   minWidth: "300px",
   border: "1px solid #ddd",
+  maxHeight: "300px",
+  overflowY: "auto" as const,
 };
 
 const moveHistoryItem = {
@@ -261,7 +264,9 @@ const Board: React.FC<BoardProps> = (props) => {
       <br />
       <textarea value={JSON.stringify(moveHistory)} disabled style={{ width: "300px", height: "40px" }} />
       <br />
-      <a href={encodeURI(`?moveHistory=${JSON.stringify(moveHistory)}`)} style={{color: "#FFF", textDecoration: "underline"}} target="_blank">inspect game for replay</a>
+      {/* https://stackoverflow.com/questions/33643874/gzip-string-in-javascript-using-pako-js */}
+      {/* @ts-expect-error for some reason gzip input is erroring out? */}
+      <a href={encodeURI(`?moveHistory=${btoa(String.fromCharCode.apply(null, gzip(JSON.stringify(moveHistory))))}`)} style={{color: "#FFF", textDecoration: "underline"}} target="_blank">inspect game for replay</a>
     </div>}
     {debug ? 
       (<div>
@@ -282,6 +287,10 @@ const Board: React.FC<BoardProps> = (props) => {
         <div>
           <button style={{ marginRight: "20px" }} onClick={() => {
             let nextIndex = moveIndex.current - 1;
+            if(nextIndex < 1) {
+              console.log("skipping prev");
+              return;
+            }
             let move = storedMoveHistory[nextIndex];
             if(move.type === "cardSelection") {
               nextIndex -= 1;
@@ -293,6 +302,10 @@ const Board: React.FC<BoardProps> = (props) => {
           }}>PREV</button>
           <button onClick={() => {
             const nextIndex = moveIndex.current + 1;
+            if(nextIndex >= storedMoveHistory.length) {
+              console.log("skipping next");
+              return;
+            }
             const move = storedMoveHistory[nextIndex];
             if(move.type === "move") {
               engine.move(move.value as string);

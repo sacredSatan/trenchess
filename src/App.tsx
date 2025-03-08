@@ -3,6 +3,7 @@ import Engine from './engine/index';
 import { useEffect, useRef, useState } from 'react';
 import Board from './Board';
 import { clientConnect, clientInitialize, getDataConnection, hostInitialize, PEER_ID_PREFIX, setupHostConnection } from './p2p';
+import { inflate } from "pako";
 
 const engine = new Engine();
 
@@ -72,7 +73,11 @@ function App() {
     if(urlMoveHistory) {
       setReplay(true);
       console.log(decodeURI(urlMoveHistory));
-      const parsedHistory = JSON.parse(decodeURI(urlMoveHistory));
+      // https://stackoverflow.com/questions/33643874/gzip-string-in-javascript-using-pako-js
+      const decoded = atob(decodeURI(urlMoveHistory));
+      // https://stackoverflow.com/questions/21797299/how-can-i-convert-a-base64-string-to-arraybuffer
+      const uncompressed = inflate(Uint8Array.from(decoded, c => c.charCodeAt(0)), { to: 'string'});
+      const parsedHistory = JSON.parse(uncompressed);
       console.log(parsedHistory);
       engine.initializeGameWithFullState(parsedHistory[0].value);
       setPosition(engine.getPositions());

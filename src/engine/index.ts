@@ -522,10 +522,13 @@ export default class Engine {
     const lastMoveReturnValue = this._move(notation, options);
     if(!options?.skipCommit) {
       this.lastMoveState = MOVE_RETURN_VALUES_MAP[lastMoveReturnValue];
-      this.moveHistory.push({
-        type: "move",
-        value: notation,
-      });
+      // only record valid moves
+      if(lastMoveReturnValue > 1) {
+        this.moveHistory.push({
+          type: "move",
+          value: notation,
+        });
+      }
     }
     this.draw();
     return lastMoveReturnValue;
