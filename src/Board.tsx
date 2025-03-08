@@ -1,4 +1,4 @@
-import { gzip, deflate } from "pako";
+import { gzip } from "pako";
 import { useRef, useState, Fragment, useMemo } from 'react';
 import Engine, { MOVE_RETURN_VALUES_MAP } from './engine/index';
 import { DataConnection } from 'peerjs';
