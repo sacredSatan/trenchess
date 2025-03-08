@@ -279,11 +279,13 @@ export default class Engine {
   private stateHistory: number[][];
   private positionCountMap: Map<string, number>;
   private lastMoveState: string;
+  private moveHistory: { type: string; value: string | string[] | number[] }[];
 
   constructor(initialState?: number[]) {
     this.stateHistory = [initialState ?? DEFAULT_STATE ?? STATE_FOR_PORTAL_BUG ?? STATE_FOR_CASTLE_BUG ?? STATE_FOR_TRENCH_TEST ?? STATE_FOR_PORTAL_TEST ?? STATE_FOR_CHECKMATE_BUG ?? STATE_FOR_ILLEGAL_MATE_TEST ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
     this.positionCountMap = new Map();
     this.lastMoveState = MOVE_RETURN_VALUES_MAP[MOVE_RETURN_VALUES.MOVE];
+    this.moveHistory = [];
   }
 
   get state() {
@@ -308,6 +310,11 @@ export default class Engine {
     return cardNumber;
   }
 
+  initializeGameWithFullState(fullState: number[]) {
+    this.stateHistory = [ fullState ];
+    this.moveHistory = [ { type: "initialState", value: fullState } ];
+  }
+
   initializeGame(initialState?: InitialState) {
     const state = initialState || {
       isWhite: Math.random() < Math.random(),
@@ -328,6 +335,10 @@ export default class Engine {
     }
 
     this.stateHistory = [ [ ...DEFAULT_STATE, state.whiteCards, state.blackCards, state.whiteCardDrawCounter, state.blackCardDrawCounter ] ];
+    this.moveHistory.push({
+      type: "initialState",
+      value: this.stateHistory[0],
+    });
     return state;
   }
 
@@ -395,6 +406,10 @@ export default class Engine {
     nextState[cardDrawCountIndex] = CARD_DRAW_COUNTER_INITIAL_VALUE;
     // replace state because I don't want this to count towards repeatdraw
     this.replaceState(nextState);
+    this.moveHistory.push({
+      type: "cardSelection",
+      value: selectedCards,
+    });
   }
   
   getCurrentTurn(state?: number[]) {
@@ -500,13 +515,17 @@ export default class Engine {
       const [piece, modifier] = squareChar.split("");
 
       return [this.indexToPosition(index), [ piece === " " ? undefined : piece, modifier === " " ? undefined : modifier ]];
-    }).filter((a) => !!a)), { lastMoveState: this.lastMoveState, currentTurn: turn === 0 ? "WHITE" : "BLACK" }, cards ]
+    }).filter((a) => !!a)), { lastMoveState: this.lastMoveState, currentTurn: turn === 0 ? "WHITE" : "BLACK" }, cards, this.moveHistory ]
   }
 
   move(notation: string, options?: { skipCommit: boolean; state?: number[]; skipCheckMate?: boolean; skipStaleMate?: boolean; }): MOVE_RETURN_VALUES {
     const lastMoveReturnValue = this._move(notation, options);
     if(!options?.skipCommit) {
       this.lastMoveState = MOVE_RETURN_VALUES_MAP[lastMoveReturnValue];
+      this.moveHistory.push({
+        type: "move",
+        value: notation,
+      });
     }
     this.draw();
     return lastMoveReturnValue;
@@ -878,6 +897,8 @@ export default class Engine {
       console.log("UNDO MOVE", this.stateHistory.length);
       const removedHistory = this.stateHistory.pop() ?? [];
       // repeat draw
+      // since we replace instead of pushing state on card selection, popping without checking can cause issues
+      // however, it'll be fine if we just don't do anything on card selection when looking through the history view
       const positionStr = removedHistory.slice(0, GAME_STATE_INDEX).join();
       const currentCount = this.positionCountMap.get(positionStr);
       if(!currentCount) {

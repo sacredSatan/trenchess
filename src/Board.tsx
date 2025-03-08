@@ -9,9 +9,33 @@ type BoardProps = {
   engine: Engine;
   connection: DataConnection | null;
   cards: string[];
+  debugCards: {
+    whiteCards: string[];
+    blackCards: string[];
+    whiteCardDrawCounter: number;
+    blackCardDrawCounter: number;
+  };
+  moveHistory: { type: string; value: string | string[] | number[] }[];
+  storedMoveHistory: { type: string; value: string | string[] | number[] }[];
   debug: boolean;
   cardDrawCounter: number;
+  replay: boolean;
 }
+
+const moveHistoryGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  maxWidth: "400px", 
+  minWidth: "300px",
+  border: "1px solid #ddd",
+};
+
+const moveHistoryItem = {
+  margin: "10px",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
 
 const gridStyle = { 
   display: "grid",
@@ -82,12 +106,13 @@ const pieceStyle = { position: "absolute" as const, top: 0, bottom: 0, width: "1
 const PIECE_CHARS = ["k", "q", "r", "b", "n", "p"].map((c) => [ c.toUpperCase(), c ]).flat();
 
 const Board: React.FC<BoardProps> = (props) => {
-  const { position, setPosition, engine, connection, isWhite, cards, debug, cardDrawCounter } = props;
+  const { position, setPosition, engine, connection, isWhite, cards, moveHistory, debug, cardDrawCounter, replay, storedMoveHistory } = props;
   const activePosition = useRef<string>();
   const [ movableSquares, setMovableSquares ] = useState<Set<number>>();
   const [ promotionMove, setPromotionMove ] = useState<string>();
   const [ activeModifier, setActiveModifier ] = useState<string>();
   const [ selectedCards, setSelectedCards ] = useState<number[]>([]);
+  const moveIndex = useRef(0);
 
   const drawCardSelection = useMemo(() => {
     return [ ...cards, ...engine.getRandomCards() ];
@@ -231,6 +256,13 @@ const Board: React.FC<BoardProps> = (props) => {
       })}
     </div>
     <p style={{ backgroundColor: "#f0d9b5", color: "#000" }}>Legend: <img style={{position: "relative", top: "2px"}} src="./modifiers/trench.svg"></img> Trench, <img style={{position: "relative", top: "2px"}} src="./modifiers/portal.svg"></img> Portal, <img style={{position: "relative", top: "2px"}} src="./modifiers/reversepawn.svg"></img> Reverse Pawn</p>
+    {!replay && <div style={{margin: "10px", padding: "10px", border: "1px solid #ddd"}}>
+      Move history
+      <br />
+      <textarea value={JSON.stringify(moveHistory)} disabled style={{ width: "300px", height: "40px" }} />
+      <br />
+      <a href={encodeURI(`?moveHistory=${JSON.stringify(moveHistory)}`)} style={{color: "#FFF", textDecoration: "underline"}} target="_blank">inspect game for replay</a>
+    </div>}
     {debug ? 
       (<div>
       <button style={activeModifier === "-1" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "-1" : undefined)}>clear</button>
@@ -246,6 +278,58 @@ const Board: React.FC<BoardProps> = (props) => {
           <button onClick={() => { engine.switchTurns(); setPosition(engine.getPositions()) }}>SWITCH TURNS</button>
         </div>
       </div>) : null}
+      {replay ? (
+        <div>
+          <button style={{ marginRight: "20px" }} onClick={() => {
+            let nextIndex = moveIndex.current - 1;
+            let move = storedMoveHistory[nextIndex];
+            if(move.type === "cardSelection") {
+              nextIndex -= 1;
+              move = storedMoveHistory[nextIndex];
+            }
+            engine.undoMove();
+            setPosition(engine.getPositions());
+            moveIndex.current = nextIndex;
+          }}>PREV</button>
+          <button onClick={() => {
+            const nextIndex = moveIndex.current + 1;
+            const move = storedMoveHistory[nextIndex];
+            if(move.type === "move") {
+              engine.move(move.value as string);
+            }
+            if(move.type === "cardSelection") {
+              engine.applyCardSelection(move.value as string[]);
+            }
+            setPosition(engine.getPositions());
+            moveIndex.current = nextIndex;
+          }}>NEXT</button>
+          <br />
+          <p>Move index: {moveIndex.current}</p>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <div style={moveHistoryGridStyle}>
+                {storedMoveHistory.map((history, index) => {
+                  if(index === 0) {
+                    return <Fragment key={index}></Fragment>
+                  }
+                  let moveText = "";
+                  if(history.type === "move") {
+                    if((history.value as string).startsWith("ADD_MODIFIER")) {
+                      console.log("hisva", history.value);
+                      const [ , ...rest ] = (history.value as string).split(" ");
+                      moveText = rest.join(" mod ");
+                    } else {
+                      moveText = history.value as string;
+                    }
+                  }
+                  if(history.type === "cardSelection") {
+                    moveText = JSON.stringify(history.value);
+                  }
+                  return <div style={moveHistoryItem}>{`${index}. ${moveText}`}</div>
+                })}
+            </div>
+          </div>
+        </div>
+      ): null}
   </>;
 };
 

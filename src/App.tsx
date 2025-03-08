@@ -8,16 +8,19 @@ const engine = new Engine();
 
 function App() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [ [ position, moveState, cards ], setPosition ] = useState(engine.getPositions());
+  const [ [ position, moveState, cards, moveHistory ], setPosition ] = useState(engine.getPositions());
   const [ isWhite, setIsWhite ] = useState<boolean | null>(null);
   const [ loading, setLoading ] = useState(false);
   const [ debug, setDebug ] = useState(false);
+  const [ replay, setReplay ] = useState(false);
   const [ peerId, setPeerId ] = useState<string>();
+  const [ storedMoveHistory, setStoredMoveHistory ] = useState<{ type: string; value: string | number[] | string[]} | null>(null);
   const isHost = useRef<boolean>();
 
   const [ , urlPeerId ] = location.search.split("?join=");
+  const [ , urlMoveHistory ] = location.search.split("?moveHistory=");
   console.log({urlPeerId, split: location.search.split("?join=")});
-  if(location.search) {
+  if(urlPeerId) {
     sessionStorage.setItem("__trenchessTmpGameId", urlPeerId);
     location.search = "";
   }
@@ -65,7 +68,17 @@ function App() {
         });
       }
     }
-  }, [ peerId ]);
+
+    if(urlMoveHistory) {
+      setReplay(true);
+      console.log(decodeURI(urlMoveHistory));
+      const parsedHistory = JSON.parse(decodeURI(urlMoveHistory));
+      console.log(parsedHistory);
+      engine.initializeGameWithFullState(parsedHistory[0].value);
+      setPosition(engine.getPositions());
+      setStoredMoveHistory(parsedHistory);
+    }
+  }, [ peerId, urlMoveHistory ]);
 
   const joinHandler = (peerId: string) => {
     console.log("joinehandler");
@@ -94,7 +107,7 @@ function App() {
     }
   }, []);
   
-  if(!peerId && !debug) {
+  if(!peerId && !debug && !replay) {
     return (
       <>
         <div style={{ opacity: 0.9 }}>
@@ -151,7 +164,7 @@ function App() {
       {debug ? <button type="button" onClick={(() => { engine.undoMove(); setPosition(engine.getPositions()) })}>undo move</button> : null}
       {debug ? <p>Debug mode is to mainly setup and try out positions, it might be broken.</p> : null}
       {/* @ts-expect-error who cares at this point */}
-      <Board isWhite={isWhite} debug={debug} cardDrawCounter={isWhite ? cards.whiteCardDrawCounter : cards.blackCardDrawCounter} cards={isWhite ? cards.whiteCards : cards.blackCards} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
+      <Board isWhite={isWhite} debug={debug} debugCards={cards} cardDrawCounter={isWhite ? cards.whiteCardDrawCounter : cards.blackCardDrawCounter} cards={isWhite ? cards.whiteCards : cards.blackCards} moveHistory={moveHistory} storedMoveHistory={storedMoveHistory} replay={replay} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
     </>
   )
 }
