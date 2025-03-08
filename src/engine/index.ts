@@ -781,7 +781,14 @@ export default class Engine {
           return MOVE_RETURN_VALUES.ILLEGAL;
         } else {
           console.log("ILLEGAL 2, MATE");
-          return MOVE_RETURN_VALUES.CHECKMATE;
+          return MOVE_RETURN_VALUES.ILLEGAL;
+          // I want to keep illegal move mate around but people aren't used to illegal moves in online chess
+          // imo in pawn endgames with lots of portals, players have to be very careful while moving their king
+          // I think it's more fun that way, so maybe a solution is to increase the number of illegals allowed and 
+          // advertise the count properly in the game interface.
+
+          // temporarily disabling it though
+          // return MOVE_RETURN_VALUES.CHECKMATE;
         }
       } else {
         console.log("CHECK!");
