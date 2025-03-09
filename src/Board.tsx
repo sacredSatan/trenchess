@@ -313,7 +313,7 @@ const Board: React.FC<BoardProps> = (props) => {
         <div>
           <button style={{ marginRight: "20px" }} onClick={() => {
             let nextIndex = moveIndex.current - 1;
-            if(nextIndex < 1) {
+            if(nextIndex < 0) {
               console.log("skipping prev");
               return;
             }

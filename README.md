@@ -30,7 +30,7 @@ This is my favourite card, it basically reverses the direction a pawn moves in. 
 
 ### Portal
 
-This works more like a tunnel, you pick squares to be the openings and any piece able to move to such squares can come out from any of the other openings.
+This works more like a tunnel, you pick squares to be the openings and any piece able to move to such squares can come out from any of the other openings. Only condition is that pawns can't reach the opposite backrank through portals, it's an invalid move. 
 
 ![portal in action](https://github.com/user-attachments/assets/70b900bc-63e3-49b1-b75d-767b879fd1a8)
 
@@ -38,7 +38,24 @@ This works more like a tunnel, you pick squares to be the openings and any piece
 
 Just removes applied effect from a tile/piece.
 
+### Caveats
+
+One tile can only hold one modifier at a given time, for example, a pawn with "reverse pawn" modifier on it moving to a tile with "portal" will destroy the "portal" modifier from the tile.
+
 ![clear in action](https://github.com/user-attachments/assets/95ceef7d-f878-4796-b623-93cbccffb39c)
+
+
+## Debug and Replay
+
+Debug mode is not worth documenting, it's mostly for development by me, to set positions and test out game logic from those positions. Replay mode was quickly put together to record and keep some interesting games I've played and regretted not being able to save them.
+
+### Replay
+
+You can save and replay a game you've played by clicking/copying the link at the bottom of the page that says "inspect game for replay", that should take you to the replay mode. You can use "PREV" and "NEXT" buttons to move through the game. It's not the most convenient but it does the job.
+
+[Here's a sample game link](https://sacredsatan.github.io/trenchess/?moveHistory=H4sIAAAAAAAAA82X30vDMBDH/5Wjz3noJel++CZs4h5EcIIPY4w0SX/A3ETqQMS/yv/Av8zbQJl1S9dla6WltD2Sy33uy10yeQuK1ycbXAT5Ii9yNR8XqrABC1Zq/kK/Jxgy5AyRoWAoNy/0GbJ+6Qo9L+zuuXuMk7XPODLONy/h+ifyDpll9/spmZy+s59oHperrSgCy8HKYL897oHuOOyGg3GN1x2Iey47QuLjP0HQtfxr9WzGdm51kS8XW+kMPj/o69fDgS1GUOIM01ZEmyJkwoO2ofGRB22LYHnztEmkyXloK1e0CsGgy15N27iyVeXfCIhd4//4Pw2WjJKMzdNea6tWtOXxArQP7cvBYHZzOxhdjYZ3s4fr0f0QFAeX2s/Ef8dC4tJCmsnIjoXomkSqZ0zcMx6xxvTUWauXq+yoXPmUKQ7Kp0yRuGLX+Cr/pAldy783EdJM0kKFImGlPqBJGZkP6B1iM/KfVCgr26hQFL6zw1b2DOnuOQd0aNMCf2p1tg3a3G8/tD5r+Og/KYfdDO1EQtrC7lN7apu0qX06ayqoNzdPW4nSga4Z2plwn0OraFO2Yh/aa5G1QFuL0oGyGdqxKB2fa9ImkSgf2pTtrAXaWQQmaqFuRwd1qekXmn4DLPMSAAA=)
+
+![replay mode in action](https://github.com/user-attachments/assets/57f5b492-43f4-49ce-a6fe-aefe885d0601)
 
 ## Why and How
 
