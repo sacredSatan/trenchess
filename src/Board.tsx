@@ -35,9 +35,6 @@ const moveHistoryGridStyle = {
 
 const moveHistoryItem = {
   margin: "10px",
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
 };
 
 const gridStyle = { 
