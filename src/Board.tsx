@@ -106,7 +106,7 @@ const pieceStyle = { position: "absolute" as const, top: 0, bottom: 0, width: "1
 const PIECE_CHARS = ["k", "q", "r", "b", "n", "p"].map((c) => [ c.toUpperCase(), c ]).flat();
 
 const Board: React.FC<BoardProps> = (props) => {
-  const { position, setPosition, engine, connection, isWhite, cards, moveHistory, debug, cardDrawCounter, replay, storedMoveHistory } = props;
+  const { position, setPosition, engine, connection, isWhite, cards, moveHistory, debug, cardDrawCounter, replay, storedMoveHistory, debugCards } = props;
   const activePosition = useRef<string>();
   const [ movableSquares, setMovableSquares ] = useState<Set<number>>();
   const [ promotionMove, setPromotionMove ] = useState<string>();
@@ -123,6 +123,14 @@ const Board: React.FC<BoardProps> = (props) => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const currentTurn = isWhite ? engine.getCurrentTurn() === "white" : engine.getCurrentTurn() === "black";
+  let shouldShowCardDraw = false;
+  if(debug) {
+    shouldShowCardDraw = engine.getCurrentTurn() === "black" ? debugCards.blackCardDrawCounter === 0 : debugCards.whiteCardDrawCounter === 0;
+  } else if(replay) {
+    shouldShowCardDraw = false;
+  } else {
+    shouldShowCardDraw = currentTurn && cardDrawCounter === 0;
+  }
   
   return <>
     {promotionMove ? (<div style={{...promotionGridStyle}}>
@@ -146,7 +154,7 @@ const Board: React.FC<BoardProps> = (props) => {
       })}
     </div>) : null}
     <div style={{ ...gridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }} ref={containerRef}>
-      {((cardDrawCounter === 0 && currentTurn) && !replay) ? <div style={{...drawCardGridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})`}}>
+      {shouldShowCardDraw ? <div style={{...drawCardGridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})`}}>
         <span>Select up to 4 cards to keep</span>
         <div style={{ border: "1px solid #ddd", padding: "10px" }}>
         {drawCardSelection.map((card, index) => {
@@ -247,14 +255,35 @@ const Board: React.FC<BoardProps> = (props) => {
         </div>;
       })}
     </div>
-    <div style={{margin: "10px", padding: "10px", border: "1px solid #ddd"}}>
+    {(!debug && !replay) ? (<div style={{margin: "10px", padding: "10px", border: "1px solid #ddd"}}>
       {cards.map((card, index) => {
         return <Fragment key={card+index}>
           <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => !oldState ? MODIFIER_VALUE_MAP[card] : undefined)}>{MODIFIER_LABEL_MAP[card]}</button>
           {index % 2 !== 0 ? <br /> : null}
         </Fragment>
       })}
-    </div>
+    </div>) : (
+      <div>
+        <p>white cards: </p>
+        <div style={{margin: "10px", padding: "10px", border: "1px solid #ddd", pointerEvents: replay ? "none" : "auto" }}>
+          {debugCards.whiteCards.map((card, index) => {
+            return <Fragment key={card+index}>
+              <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => !oldState ? MODIFIER_VALUE_MAP[card] : undefined)}>{MODIFIER_LABEL_MAP[card]}</button>
+              {index % 2 !== 0 ? <br /> : null}
+            </Fragment>
+          })}
+        </div>
+        <p>black cards: </p>
+        <div style={{margin: "10px", padding: "10px", border: "1px solid #ddd", pointerEvents: replay ? "none" : "auto" }}>
+          {debugCards.blackCards.map((card, index) => {
+            return <Fragment key={card+index}>
+              <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => !oldState ? MODIFIER_VALUE_MAP[card] : undefined)}>{MODIFIER_LABEL_MAP[card]}</button>
+              {index % 2 !== 0 ? <br /> : null}
+            </Fragment>
+          })}
+        </div>
+      </div>
+    )}
     <p style={{ backgroundColor: "#f0d9b5", color: "#000" }}>Legend: <img style={{position: "relative", top: "2px"}} src="./modifiers/trench.svg"></img> Trench, <img style={{position: "relative", top: "2px"}} src="./modifiers/portal.svg"></img> Portal, <img style={{position: "relative", top: "2px"}} src="./modifiers/reversepawn.svg"></img> Reverse Pawn</p>
     {!replay && <div style={{margin: "10px", padding: "10px", border: "1px solid #ddd"}}>
       Move history
