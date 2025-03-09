@@ -146,7 +146,7 @@ const Board: React.FC<BoardProps> = (props) => {
       })}
     </div>) : null}
     <div style={{ ...gridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }} ref={containerRef}>
-      {(cardDrawCounter === 0 && currentTurn) ? <div style={{...drawCardGridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})`}}>
+      {((cardDrawCounter === 0 && currentTurn) && !replay) ? <div style={{...drawCardGridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})`}}>
         <span>Select up to 4 cards to keep</span>
         <div style={{ border: "1px solid #ddd", padding: "10px" }}>
         {drawCardSelection.map((card, index) => {

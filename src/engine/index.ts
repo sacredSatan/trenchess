@@ -792,7 +792,7 @@ export default class Engine {
 
     this.switchTurns(nextState);
 
-    // // debugger;
+    // debugger;
     const kingInDanger = this.checkKingInDanger(nextState);
     if (kingInDanger[PIECES.WHITE]) {
       // switched turns above
@@ -1061,10 +1061,12 @@ export default class Engine {
     const squareIndex = SQUARE_INDEX_MAP[location];
     const targetPieces = ALL_PIECES.difference(collisionPieces);
     const pawnDirection = colour === PIECES.WHITE ? DIRECTION.W_PAWN : DIRECTION.B_PAWN;
+    const reversePawnDirection = colour === PIECES.WHITE ? DIRECTION.W_PAWN_REVERSE : DIRECTION.B_PAWN_REVERSE;
     const [, plusSquares] = this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces: collisionPieces, state, skipModifiers: { skipPortal } });
     const [, diagonalSquares] = this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces: collisionPieces, state, skipModifiers: { skipPortal } });
     const [, knightSqaures] = this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces: collisionPieces, state, skipModifiers: { skipPortal } });
     const [, _pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces: collisionPieces, state, depth: 1, skipModifiers: { skipPortal } });
+    const [, _reversePawnSquares] = this.getSquaresInDirection(location, reversePawnDirection, { collisionPieces: collisionPieces, state, depth: 1, skipModifiers: { skipPortal } });
     const [, kingSquares] = this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces: new Set([ PIECES.KING | colour ]), state, depth: 1, skipModifiers: { skipPortal } });
     const [allPortalSquares] = skipPortal ? [new Set<number>(), new Set<number>()] : this.getSquaresWithPortalFromSquareIndexArr([ squareIndex ], targetPieces, state);
 
@@ -1075,6 +1077,14 @@ export default class Engine {
         return false;
       }
       return true;
+    }));
+    const reversePawnSquares = new Set(Array.from(_reversePawnSquares).filter((squareIndex) => {
+      const piece = this.extractPiece(state[squareIndex]);
+      const modifier = this.extractModifierFromSquareIndex(squareIndex, state);
+      if(piece === PIECES.PAWN && modifier === TILE_MODIFIERS.REVERSE_PAWN) {
+        return true;
+      }
+      return false;
     }));
     const portalAttacks: number[] = [];
     Array.from(allPortalSquares).forEach((squareIndex) => {
@@ -1090,6 +1100,7 @@ export default class Engine {
       ["diagonal", new Set(Array.from(diagonalSquares).filter((sIndex) => DIAGONAL_DANGER.has(this.extractPiece(state[sIndex]))))],
       ["knight", new Set(Array.from(knightSqaures).filter((sIndex) => PIECES.KNIGHT === this.extractPiece(state[sIndex])))],
       ["pawn", new Set(Array.from(pawnSquares).filter((sIndex) => PIECES.PAWN === this.extractPiece(state[sIndex])))],
+      ["reversepawn", new Set(Array.from(reversePawnSquares).filter((sIndex) => PIECES.PAWN === this.extractPiece(state[sIndex])))],
       ["king", new Set(Array.from(kingSquares).filter((sIndex) => PIECES.KING === this.extractPiece(state[sIndex])))],
       ["portal", new Set(portalAttacks)],
     ]);
