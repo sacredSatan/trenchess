@@ -154,7 +154,7 @@ const Board: React.FC<BoardProps> = (props) => {
         }}><div style={{ ...pieceStyle, backgroundImage: `url(./pieces/${pieceImageName}.svg)`, backgroundSize: "contain" }}></div></div>;
       })}
     </div>) : null}
-    <div style={{ ...gridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})`, pointerEvents: disableMoves ? "none" : "auto" }} ref={containerRef}>
+    <div style={{ ...gridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})`, pointerEvents: (disableMoves || replay) ? "none" : "auto" }} ref={containerRef}>
       {shouldShowCardDraw ? <div style={{...drawCardGridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})`}}>
         <span>Select up to 4 cards to keep</span>
         <div style={{ border: "1px solid #ddd", padding: "10px" }}>
@@ -354,7 +354,7 @@ const Board: React.FC<BoardProps> = (props) => {
                   let moveText = "";
                   if(history.type === "move") {
                     if((history.value as string).startsWith("ADD_MODIFIER")) {
-                      console.log("hisva", history.value);
+                      // console.log("hisva", history.value);
                       const [ , ...rest ] = (history.value as string).split(" ");
                       moveText = rest.join(" mod ");
                     } else {
