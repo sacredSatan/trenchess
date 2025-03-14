@@ -9,8 +9,8 @@ trenchess is regular chess, with an option to alter the properties of the game b
 For those (me) who can't beat someone at regular chess, there's a slightly better chance with this one with the added element of luck. (It's not enough for me though).
 
 ## Gameplay loop
-- each player starts with 4 cards (one of each type)
-- every 4 moves they get an option to select upto 4 cards from 2 random cards + cards in hand
+- each player starts with _n_ cards (one of each type)
+- every 4 moves they get an option to select cards from 2 random cards + cards in hand (max _n_ cards)
 - playing a card switches turns (could be a potential out for zugzwang)
 - regular game of chess otherwise
 
@@ -24,9 +24,23 @@ Dig a trench with a pawn, allowing no pieces to cross or occupy (except the Knig
 
 ### Reverse Pawn
 
-This is my favourite card, it basically reverses the direction a pawn moves in. The reversed pawn can no longer be promoted (since it'll never reach the opponent's back rank). Initially my idea was for the pawn to switch directions after it reaches its own backrank (as in, a white pawn on e, reaches e1), so essentially "promoting" it to be a regular pawn. But I think this version is good enough.
+This is my 2nd favourite card, it basically reverses the direction a pawn moves in. The reversed pawn can no longer be promoted (since it'll never reach the opponent's back rank). Initially my idea was for the pawn to switch directions after it reaches its own backrank (as in, a white pawn on e, reaches e1), so essentially "promoting" it to be a regular pawn. But I think this version is good enough.
 
 ![reverse pawn in action](https://github.com/user-attachments/assets/bdafe5bc-6ccf-4799-8343-d9588c17f444)
+
+### Shove Pawn
+
+This is my favourite card, and in combination with reverse pawn it can be deadly. It essentially shoves a pawn forward, regardless of pawn colour. 
+
+#### checkmate with a shove
+![checkmate with the shove in action](https://github.com/user-attachments/assets/8905f754-0c72-4e52-8dc5-241729236ad4)
+
+_my brother came up with this position_
+
+#### block pieces with a shove
+![shove in action](https://github.com/user-attachments/assets/c0d72f2b-6ced-412e-b228-023517d2e282)
+
+_credit for this position also goes to my brother but he did it in a game with me_
 
 ### Portal
 
@@ -38,11 +52,12 @@ This works more like a tunnel, you pick squares to be the openings and any piece
 
 Just removes applied effect from a tile/piece.
 
+![clear in action](https://github.com/user-attachments/assets/95ceef7d-f878-4796-b623-93cbccffb39c)
+
+
 ### Caveats
 
-One tile can only hold one modifier at a given time, for example, a pawn with "reverse pawn" modifier on it moving to a tile with "portal" will destroy the "portal" modifier from the tile.
-
-![clear in action](https://github.com/user-attachments/assets/95ceef7d-f878-4796-b623-93cbccffb39c)
+One tile can only hold one modifier at a given time, for example, a pawn with "reverse pawn" modifier on it moving to a tile with "portal" will destroy the "portal" modifier from the tile. Same happens when you use shove on a pawn.
 
 
 ## Debug and Replay
@@ -90,7 +105,7 @@ It uses peerjs, once I settled on web as the interface, I wanted to use webrtc t
 ## Todos
 
 - ~~Instead of the random 6 cards at the beginning of the game, allow players to draw/discard cards after every n moves.~~
-  - players now start with one card of each type (4 total), and every 4 moves they get an option to select upto 4 cards, from 2 random cards + the cards already in their hand.
+  - players now start with one card of each type (_n_ total), and every 4 moves they get an option to select cards from 2 random cards + the cards already in their hand (max _n_ cards).
 - Error handling (your only recourse currently is to reload the page and lose the state)
 - Add tests to ensure that the classic chess implementation is bugfree at least
 - Simple qol improvements like last move indicator, sound etc. But way down in the priority list.

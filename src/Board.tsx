@@ -158,7 +158,7 @@ const Board: React.FC<BoardProps> = (props) => {
     </div>) : null}
     <div style={{ ...gridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})`, pointerEvents: (disableMoves || replay) ? "none" : "auto" }} ref={containerRef}>
       {shouldShowCardDraw ? <div style={{...drawCardGridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})`}}>
-        <span>Select up to 4 cards to keep</span>
+        <span>{`Select cards to keep (max ${MAX_CARDS_IN_HAND})`}</span>
         <div style={{ border: "1px solid #ddd", padding: "10px" }}>
         {drawCardSelection.map((card, index) => {
           return <Fragment key={card+index}>
