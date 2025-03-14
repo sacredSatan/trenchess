@@ -21,6 +21,7 @@ type BoardProps = {
   debug: boolean;
   cardDrawCounter: number;
   replay: boolean;
+  disableMoves: boolean;
 }
 
 const moveHistoryGridStyle = {
@@ -106,7 +107,7 @@ const pieceStyle = { position: "absolute" as const, top: 0, bottom: 0, width: "1
 const PIECE_CHARS = ["k", "q", "r", "b", "n", "p"].map((c) => [ c.toUpperCase(), c ]).flat();
 
 const Board: React.FC<BoardProps> = (props) => {
-  const { position, setPosition, engine, connection, isWhite, cards, moveHistory, debug, cardDrawCounter, replay, storedMoveHistory, debugCards } = props;
+  const { position, setPosition, engine, connection, isWhite, cards, moveHistory, debug, cardDrawCounter, replay, storedMoveHistory, debugCards, disableMoves } = props;
   const activePosition = useRef<string>();
   const [ movableSquares, setMovableSquares ] = useState<Set<number>>();
   const [ promotionMove, setPromotionMove ] = useState<string>();
@@ -153,7 +154,7 @@ const Board: React.FC<BoardProps> = (props) => {
         }}><div style={{ ...pieceStyle, backgroundImage: `url(./pieces/${pieceImageName}.svg)`, backgroundSize: "contain" }}></div></div>;
       })}
     </div>) : null}
-    <div style={{ ...gridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})` }} ref={containerRef}>
+    <div style={{ ...gridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})`, pointerEvents: disableMoves ? "none" : "auto" }} ref={containerRef}>
       {shouldShowCardDraw ? <div style={{...drawCardGridStyle, transform: `rotate(${isWhite ? "0deg" : "180deg"})`}}>
         <span>Select up to 4 cards to keep</span>
         <div style={{ border: "1px solid #ddd", padding: "10px" }}>
@@ -217,7 +218,7 @@ const Board: React.FC<BoardProps> = (props) => {
             setMovableSquares(undefined);
             activePosition.current = undefined;
           } else {
-            if(activePosition.current) {
+            if(activePosition.current && isMovable) {
               const move = `${activePos} ${positionName}`;
               if(activePiece === "P" && positionName.endsWith("8") && activePos.endsWith("7") && engine.getCurrentTurn() === "white" || 
               activePiece === "p" && positionName.endsWith("1") && activePos.endsWith("2") && engine.getCurrentTurn() === "black") {
@@ -258,7 +259,7 @@ const Board: React.FC<BoardProps> = (props) => {
     {(!debug && !replay) ? (<div style={{margin: "10px", padding: "10px", border: "1px solid #ddd"}}>
       {cards.map((card, index) => {
         return <Fragment key={card+index}>
-          <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => !oldState ? MODIFIER_VALUE_MAP[card] : undefined)}>{MODIFIER_LABEL_MAP[card]}</button>
+          <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => oldState !== MODIFIER_VALUE_MAP[card] ? MODIFIER_VALUE_MAP[card] : undefined )}>{MODIFIER_LABEL_MAP[card]}</button>
           {index % 2 !== 0 ? <br /> : null}
         </Fragment>
       })}
@@ -268,7 +269,7 @@ const Board: React.FC<BoardProps> = (props) => {
         <div style={{margin: "10px", padding: "10px", border: "1px solid #ddd", pointerEvents: replay ? "none" : "auto" }}>
           {debugCards.whiteCards.map((card, index) => {
             return <Fragment key={card+index}>
-              <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => !oldState ? MODIFIER_VALUE_MAP[card] : undefined)}>{MODIFIER_LABEL_MAP[card]}</button>
+              <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => oldState !== MODIFIER_VALUE_MAP[card] ? MODIFIER_VALUE_MAP[card] : undefined )}>{MODIFIER_LABEL_MAP[card]}</button>
               {index % 2 !== 0 ? <br /> : null}
             </Fragment>
           })}
@@ -277,7 +278,7 @@ const Board: React.FC<BoardProps> = (props) => {
         <div style={{margin: "10px", padding: "10px", border: "1px solid #ddd", pointerEvents: replay ? "none" : "auto" }}>
           {debugCards.blackCards.map((card, index) => {
             return <Fragment key={card+index}>
-              <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => !oldState ? MODIFIER_VALUE_MAP[card] : undefined)}>{MODIFIER_LABEL_MAP[card]}</button>
+              <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => oldState !== MODIFIER_VALUE_MAP[card] ? MODIFIER_VALUE_MAP[card] : undefined )}>{MODIFIER_LABEL_MAP[card]}</button>
               {index % 2 !== 0 ? <br /> : null}
             </Fragment>
           })}
@@ -302,7 +303,7 @@ const Board: React.FC<BoardProps> = (props) => {
       <button style={activeModifier === "2" ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? "2" : undefined)}>reverse pawn</button>
 
         <div>
-          {PIECE_CHARS.map((char) => <button style={activeModifier === char ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? char : undefined)}>{char}</button>)}
+          {PIECE_CHARS.map((char) => <button key={char} style={activeModifier === char ? activeButtonStyle : {}} onClick={() => setActiveModifier((oldState) => !oldState ? char : undefined)}>{char}</button>)}
           <br />
           <button onClick={() => { engine.resetState(); setPosition(engine.getPositions()) }}>EMPTY BOARD</button>
           <button onClick={() => { engine.resetState(true); setPosition(engine.getPositions()) }}>DEFAULT STATE</button>

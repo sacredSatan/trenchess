@@ -834,7 +834,8 @@ export default class Engine {
           return MOVE_RETURN_VALUES.ILLEGAL;
         } else {
           console.log("ILLEGAL 2, MATE");
-          return MOVE_RETURN_VALUES.CHECKMATE;
+          // remove illegal mates temporarily
+          return MOVE_RETURN_VALUES.ILLEGAL;
         }
       } else {
         console.log("CHECK!");

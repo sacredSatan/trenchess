@@ -169,7 +169,7 @@ function App() {
       {debug ? <button type="button" onClick={(() => { engine.undoMove(); setPosition(engine.getPositions()) })}>undo move</button> : null}
       {debug ? <p>Debug mode is to mainly setup and try out positions, it might be broken.</p> : null}
       {/* @ts-expect-error who cares at this point */}
-      <Board isWhite={isWhite} debug={debug} debugCards={cards} cardDrawCounter={isWhite ? cards.whiteCardDrawCounter : cards.blackCardDrawCounter} cards={isWhite ? cards.whiteCards : cards.blackCards} moveHistory={moveHistory} storedMoveHistory={storedMoveHistory} replay={replay} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
+      <Board disableMoves={new Set(["CHECKMATE", "STALEMATE", "REPEATDRAW"]).has(moveState.lastMoveState)} isWhite={isWhite} debug={debug} debugCards={cards} cardDrawCounter={isWhite ? cards.whiteCardDrawCounter : cards.blackCardDrawCounter} cards={isWhite ? cards.whiteCards : cards.blackCards} moveHistory={moveHistory} storedMoveHistory={storedMoveHistory} replay={replay} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
     </>
   )
 }
