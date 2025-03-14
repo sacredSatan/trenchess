@@ -36,16 +36,31 @@ enum TILE_MODIFIERS {
   // it'd been nice to have represented the whole game state with just 64 numbers (+1 for player states)
   // I'm still going to try to stretch this as much as I can
   // pawn and knights can go anywhere
-  ROYALTY_ONLY = 0b0011_00000,
-  ROOK_ONLY = 0b0100_00000,
-  BISHOP_ONLY = 0b0101_00000,
-  CLEAR_MODIFIER = 0b0110_00000,
+  // ROYALTY_ONLY = 0b0011_00000,
+  // ROOK_ONLY = 0b0100_00000,
+  // BISHOP_ONLY = 0b0101_00000,
   REVERSE_PAWN = 0b0111_00000,
+
+  // I don't think clear and shove need to be defined here since they don't "stay" on the board
+  // but it's fine for now
+  CLEAR_MODIFIER = 0b0110_00000,
+  SHOVE_PAWN = 0b0101_00000,
 
   // treating valid en passant as a modifier for now
   // didn't do it this way after all
   // EN_PASSANT    = 0b1_00000000,
 }
+
+const STICKY_MODIFIERS = new Set([
+  TILE_MODIFIERS.TRENCH,
+  TILE_MODIFIERS.PORTAL,
+  TILE_MODIFIERS.REVERSE_PAWN,
+  TILE_MODIFIERS.CLEAR_MODIFIER,
+
+  // the idea initially was to make this a non-sticky modifier and handle it differently but for now it's fine
+  // same with clear modifier
+  TILE_MODIFIERS.SHOVE_PAWN,
+]);
 
 
 enum CARDS {
@@ -53,6 +68,7 @@ enum CARDS {
   TRENCH = 0b0010,
   PORTAL = 0b0011,
   REVERSE_PAWN = 0b0100,
+  SHOVE_PAWN = 0b0101,
   MASK = 0b1111,
 }
 
@@ -60,6 +76,7 @@ const CARD_TO_TILE_MODIFIERS_MAP = {
   [CARDS.TRENCH]: TILE_MODIFIERS.TRENCH,
   [CARDS.PORTAL]: TILE_MODIFIERS.PORTAL,
   [CARDS.REVERSE_PAWN]: TILE_MODIFIERS.REVERSE_PAWN,
+  [CARDS.SHOVE_PAWN]: TILE_MODIFIERS.SHOVE_PAWN,
   [CARDS.CLEAR_MODIFIER]: TILE_MODIFIERS.CLEAR_MODIFIER,
 } as Record<CARDS, TILE_MODIFIERS>;
 
@@ -98,6 +115,7 @@ const MODIFIER_INDEX = {
   "0": TILE_MODIFIERS.TRENCH,
   "1": TILE_MODIFIERS.PORTAL,
   "2": TILE_MODIFIERS.REVERSE_PAWN,
+  "3": TILE_MODIFIERS.SHOVE_PAWN,
 } as Record<string, number>;
 
 
@@ -107,6 +125,7 @@ const MODIFIER_CHAR = {
   [TILE_MODIFIERS.TRENCH]: "¹",
   [TILE_MODIFIERS.PORTAL]: "²",
   [TILE_MODIFIERS.REVERSE_PAWN]: "³",
+  [TILE_MODIFIERS.SHOVE_PAWN]: "⁴",
 } as Record<TILE_MODIFIERS, string>;
 
 const CHAR_TO_MODIFIER_MAP = Object.fromEntries(Object.entries(MODIFIER_CHAR).map(e => e.reverse()))
@@ -249,7 +268,8 @@ const STATE_FOR_PORTAL_TEST =  [22,0,0,0,0,0,0,14,0,0,0,64,0,0,0,0,0,0,0,0,0,0,0
 const STATE_FOR_TRENCH_TEST = [ 14, 0, 0, 0, 0, 0, 0, 22, 49, 49, 0, 0, 0, 0, 49, 17, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 127];
 const STATE_FOR_CASTLE_BUG = [10,12,0,13,14,0,0,10,9,0,9,9,9,9,0,9,0,9,0,0,0,12,9,0,0,20,0,0,0,0,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,17,19,17,17,17,17,19,17,18,0,0,21,22,0,0,18,127];
 
-const ALL_CARDS = [ CARDS.CLEAR_MODIFIER, CARDS.PORTAL, CARDS.TRENCH, CARDS.REVERSE_PAWN ];
+export const ALL_CARDS = [ CARDS.CLEAR_MODIFIER, CARDS.PORTAL, CARDS.TRENCH, CARDS.REVERSE_PAWN, CARDS.SHOVE_PAWN ];
+export const MAX_CARDS_IN_HAND = ALL_CARDS.length;
 // const ALL_CARDS = [ CARDS.REVERSE_PAWN, CARDS.REVERSE_PAWN, CARDS.REVERSE_PAWN, CARDS.REVERSE_PAWN ];
 
 type SkipModifiersOptions = {
@@ -552,7 +572,7 @@ export default class Engine {
   // I don't want to spend time implementing actual algebraic notation parsing right now (eventually will have to, when I want to support castles etc I guess)
   // current objective is to get this in a state where I can just write actual gameplay logic with a barebones ui
   _move(notation: string, options?: { skipCommit: boolean; state?: number[]; skipCheckMate?: boolean; skipStaleMate?: boolean; }): MOVE_RETURN_VALUES {
-    // debugger;
+    debugger;
     const { skipCommit, skipCheckMate, skipStaleMate, state: _state } = options ?? {};
     const state = _state || this.state;
     let nextState = [...state];
@@ -560,10 +580,11 @@ export default class Engine {
     
     const gameState = this.getGameState(state);
     const isInitiallyWhiteTurn = gameState.turn === GAME_STATE.WHITE_TURN;
-
-    if(from.startsWith("ADD_MODIFIER_")) {
+    const modifierValue = from.startsWith("ADD_MODIFIER") ? MODIFIER_INDEX[rest[0]] as TILE_MODIFIERS : null;
+    const modifierPlayer = from.split("ADD_MODIFIER_")[1];
+    const isStickyModifier = STICKY_MODIFIERS.has(modifierValue as TILE_MODIFIERS);
+    if(isStickyModifier) {
       // debugger;
-      const modifierPlayer = from.split("ADD_MODIFIER_")[1];
       if((modifierPlayer === "WHITE" && !isInitiallyWhiteTurn) || (modifierPlayer === "BLACK" && isInitiallyWhiteTurn)) {
         return MOVE_RETURN_VALUES.INVALID;
       }
@@ -595,7 +616,7 @@ export default class Engine {
       
       if(modifierValue === TILE_MODIFIERS.CLEAR_MODIFIER) {
         nextState[targetIndex] = currentPieceWColour;
-      } else if(currentModifier) {
+      } else if(currentModifier && modifierValue !== TILE_MODIFIERS.SHOVE_PAWN) {
         return MOVE_RETURN_VALUES.INVALID;
       } else {
         if(modifierValue === TILE_MODIFIERS.TRENCH) {
@@ -610,7 +631,44 @@ export default class Engine {
         if(modifierValue === TILE_MODIFIERS.REVERSE_PAWN && currentPiece !== PIECES.PAWN) {
           return MOVE_RETURN_VALUES.INVALID;
         }
-        nextState[targetIndex] = currentPieceWColour | modifierValue;
+
+        if(modifierValue === TILE_MODIFIERS.SHOVE_PAWN) {
+          debugger;
+          if(currentPiece !== PIECES.PAWN) {
+            return MOVE_RETURN_VALUES.INVALID;
+          }
+          const isOwnPawn = (isInitiallyWhiteTurn && currentPieceWColour === (PIECES.WHITE | PIECES.PAWN)) || (!isInitiallyWhiteTurn && currentPieceWColour === (PIECES.BLACK | PIECES.PAWN));
+          const secondToLastRow = new Set("abcdefgh".split("").map((col) => isInitiallyWhiteTurn ? `${col}7` : `${col}2`));
+          const targetPosition = this.indexToPosition(targetIndex);
+          
+          // can't promote by shoving
+          if(secondToLastRow.has(targetPosition) && isOwnPawn) {
+            return MOVE_RETURN_VALUES.INVALID;
+          }
+
+          const destinationSquareIndex = isInitiallyWhiteTurn ? targetIndex + 8 : targetIndex - 8;
+          if(destinationSquareIndex < 0 || destinationSquareIndex > 63) {
+            return MOVE_RETURN_VALUES.INVALID;
+          }
+
+          // destination has to be empty
+          const destinationSquarePiece = this.extractPiece(state[destinationSquareIndex]);
+          const destinationSquareModifier = this.extractModifierFromSquareIndex(destinationSquareIndex, state);
+          const targetSquareModifier = this.extractModifierFromSquareIndex(targetIndex, state);
+          if(destinationSquarePiece !== PIECES.EMPTY && destinationSquarePiece !== PIECES.EN_PASSANT) {
+            return MOVE_RETURN_VALUES.INVALID;
+          }
+          
+          if(new Set([ TILE_MODIFIERS.TRENCH, TILE_MODIFIERS.REVERSE_PAWN ]).has(targetSquareModifier)) {
+            nextState[targetIndex] ^= targetSquareModifier;
+            nextState[destinationSquareIndex] = currentPieceWColour | targetSquareModifier;
+          } else {
+            nextState[destinationSquareIndex] = currentPieceWColour | destinationSquareModifier;
+          }
+          nextState[targetIndex] ^= currentPieceWColour;
+        } else {
+          nextState[targetIndex] = currentPieceWColour | modifierValue;
+        }
       }
 
       playerCards.splice(playerCardIndex, 1);
@@ -768,6 +826,10 @@ export default class Engine {
         }
       }
 
+      // we only clear this in case of a move, this can cause an issue, setting a modifier is also a move
+      // but this'll only ever be an issue if say a pawn moved 2 places, and other player played a modifier
+      // and the original player who moved the pawn also played a modifier, in that case the next player can
+      // still target the pawn for en passant as if it just moved last turn, fixing this after shove
       nextState = nextState.map((square, index) => {
         if (index > 63) {
           return square;

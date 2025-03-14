@@ -1,6 +1,6 @@
 import { gzip } from "pako";
 import { useRef, useState, Fragment, useMemo } from 'react';
-import Engine, { MOVE_RETURN_VALUES_MAP } from './engine/index';
+import Engine, { MOVE_RETURN_VALUES_MAP, MAX_CARDS_IN_HAND } from './engine/index';
 import { DataConnection } from 'peerjs';
 
 type BoardProps = {
@@ -82,6 +82,7 @@ const MODIFIER_LABEL_MAP = {
   "¹": "Trench",
   "²": "Portal",
   "³": "Reverse Pawn",
+  "⁴": "Shove Pawn",
 } as Record<string, string>;
 
 const MODIFIER_VALUE_MAP = {
@@ -97,6 +98,7 @@ const MODIFIER_IMAGE_MAP = {
   "¹": "trench.svg",
   "²": "portal.svg",
   "³": "reversepawn.svg",
+  "4": "shovepawn.svg",
 } as Record<string, string>;
 
 // paddingBottom 100% ensures div is a square
@@ -167,7 +169,7 @@ const Board: React.FC<BoardProps> = (props) => {
         </div>
         <div>
           <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent"}}
-            disabled={!((drawCardSelection.length === selectedCards.length) || selectedCards.length === 4)} onClick={() => {
+            disabled={!((drawCardSelection.length === selectedCards.length) || selectedCards.length === MAX_CARDS_IN_HAND)} onClick={() => {
             console.log("selection", selectedCards.map((index) => drawCardSelection[index]));
             const selectedCardValues = selectedCards.map((index) => drawCardSelection[index]);
             engine.applyCardSelection(selectedCardValues);
