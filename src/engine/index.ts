@@ -251,6 +251,8 @@ export enum MOVE_RETURN_VALUES {
   STALEMATE,
   CHECKMATE,
   REPEATDRAW,
+  RESIGNATION_W,
+  RESIGNATION_B,
   MOVE,
 }
 
@@ -260,6 +262,8 @@ export const MOVE_RETURN_VALUES_MAP = {
   [MOVE_RETURN_VALUES.STALEMATE]: "STALEMATE",
   [MOVE_RETURN_VALUES.CHECKMATE]: "CHECKMATE",
   [MOVE_RETURN_VALUES.REPEATDRAW]: "REPEATDRAW",
+  [MOVE_RETURN_VALUES.RESIGNATION_W]: "RESIGNATION_W",
+  [MOVE_RETURN_VALUES.RESIGNATION_B]: "RESIGNATION_B",
   [MOVE_RETURN_VALUES.MOVE]: "MOVE",
 }
 
@@ -572,13 +576,20 @@ export default class Engine {
   // I don't want to spend time implementing actual algebraic notation parsing right now (eventually will have to, when I want to support castles etc I guess)
   // current objective is to get this in a state where I can just write actual gameplay logic with a barebones ui
   _move(notation: string, options?: { skipCommit: boolean; state?: number[]; skipCheckMate?: boolean; skipStaleMate?: boolean; }): MOVE_RETURN_VALUES {
-    debugger;
+    // debugger;
     const { skipCommit, skipCheckMate, skipStaleMate, state: _state } = options ?? {};
     const state = _state || this.state;
     let nextState = [...state];
     const [from, to, ...rest] = notation.split(" ");
     
     const gameState = this.getGameState(state);
+    if(from === "RESIGN_W") {
+      return MOVE_RETURN_VALUES.RESIGNATION_W;
+    }
+
+    if(from === "RESIGN_B") {
+      return MOVE_RETURN_VALUES.RESIGNATION_B;
+    }
     const isInitiallyWhiteTurn = gameState.turn === GAME_STATE.WHITE_TURN;
     const modifierValue = from.startsWith("ADD_MODIFIER") ? MODIFIER_INDEX[rest[0]] as TILE_MODIFIERS : null;
     const modifierPlayer = from.split("ADD_MODIFIER_")[1];
@@ -633,7 +644,7 @@ export default class Engine {
         }
 
         if(modifierValue === TILE_MODIFIERS.SHOVE_PAWN) {
-          debugger;
+          // debugger;
           if(currentPiece !== PIECES.PAWN) {
             return MOVE_RETURN_VALUES.INVALID;
           }

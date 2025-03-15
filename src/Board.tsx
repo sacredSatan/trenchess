@@ -258,7 +258,7 @@ const Board: React.FC<BoardProps> = (props) => {
         </div>;
       })}
     </div>
-    {(!debug && !replay) ? (<div style={{margin: "10px", padding: "10px", border: "1px solid #ddd"}}>
+    {(!debug && !replay) ? (<div style={{margin: "10px", padding: "10px", border: "1px solid #ddd", pointerEvents: disableMoves ? "none" : "auto"}}>
       {cards.map((card, index) => {
         return <Fragment key={card+index}>
           <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent", ...(activeModifier === MODIFIER_VALUE_MAP[card] ? activeButtonStyle : {}) }} onClick={() => setActiveModifier((oldState) => oldState !== MODIFIER_VALUE_MAP[card] ? MODIFIER_VALUE_MAP[card] : undefined )}>{MODIFIER_LABEL_MAP[card]}</button>
@@ -267,6 +267,38 @@ const Board: React.FC<BoardProps> = (props) => {
       })}
     </div>) : (
       <div>
+        {replay ? <><br/><button style={{ marginRight: "20px" }} onClick={() => {
+            let nextIndex = moveIndex.current - 1;
+            if(nextIndex < 0) {
+              console.log("skipping prev");
+              return;
+            }
+            let move = storedMoveHistory[nextIndex];
+            if(move.type === "cardSelection") {
+              nextIndex -= 1;
+              move = storedMoveHistory[nextIndex];
+            }
+            engine.undoMove();
+            setPosition(engine.getPositions());
+            moveIndex.current = nextIndex;
+          }}>PREV</button>
+          <button onClick={() => {
+            const nextIndex = moveIndex.current + 1;
+            if(nextIndex >= storedMoveHistory.length) {
+              console.log("skipping next");
+              return;
+            }
+            const move = storedMoveHistory[nextIndex];
+            if(move.type === "move") {
+              engine.move(move.value as string);
+            }
+            if(move.type === "cardSelection") {
+              engine.applyCardSelection(move.value as string[]);
+            }
+            setPosition(engine.getPositions());
+            moveIndex.current = nextIndex;
+          }}>NEXT</button>
+          <br /></> : null}
         <p>white cards: </p>
         <div style={{margin: "10px", padding: "10px", border: "1px solid #ddd", pointerEvents: replay ? "none" : "auto" }}>
           {debugCards.whiteCards.map((card, index) => {
@@ -314,38 +346,6 @@ const Board: React.FC<BoardProps> = (props) => {
       </div>) : null}
       {replay ? (
         <div>
-          <button style={{ marginRight: "20px" }} onClick={() => {
-            let nextIndex = moveIndex.current - 1;
-            if(nextIndex < 0) {
-              console.log("skipping prev");
-              return;
-            }
-            let move = storedMoveHistory[nextIndex];
-            if(move.type === "cardSelection") {
-              nextIndex -= 1;
-              move = storedMoveHistory[nextIndex];
-            }
-            engine.undoMove();
-            setPosition(engine.getPositions());
-            moveIndex.current = nextIndex;
-          }}>PREV</button>
-          <button onClick={() => {
-            const nextIndex = moveIndex.current + 1;
-            if(nextIndex >= storedMoveHistory.length) {
-              console.log("skipping next");
-              return;
-            }
-            const move = storedMoveHistory[nextIndex];
-            if(move.type === "move") {
-              engine.move(move.value as string);
-            }
-            if(move.type === "cardSelection") {
-              engine.applyCardSelection(move.value as string[]);
-            }
-            setPosition(engine.getPositions());
-            moveIndex.current = nextIndex;
-          }}>NEXT</button>
-          <br />
           <p>Move index: {moveIndex.current}</p>
           <div style={{ display: "flex", justifyContent: "center" }}>
             <div style={moveHistoryGridStyle}>
@@ -372,6 +372,19 @@ const Board: React.FC<BoardProps> = (props) => {
           </div>
         </div>
       ): null}
+      {!replay ? (<button style={{ pointerEvents: disableMoves ? "none" : "auto" }} onClick={() => {
+        const move = `RESIGN_${isWhite ? "W" : "B"}`;
+        const moveValue = engine.move(move);
+        if(moveValue > 1) {
+          connection?.send(move);
+          setPosition(engine.getPositions());
+          setMovableSquares(undefined);
+          activePosition.current = undefined;
+          setPromotionMove(undefined);
+        } else {
+          alert(MOVE_RETURN_VALUES_MAP[moveValue]);
+        }
+      }}>RESIGN</button>) : null}
   </>;
 };
 
