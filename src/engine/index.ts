@@ -309,6 +309,7 @@ const CARD_DRAW_COUNTER_INITIAL_VALUE = 4;
 
 const STATE_FOR_PORTAL_BUG = [10,12,11,0,14,11,12,10,9,9,9,233,0,0,9,9,0,0,0,0,0,64,0,0,0,0,0,0,9,0,0,0,0,0,0,73,241,49,0,13,0,0,0,17,0,0,17,0,17,17,17,0,0,0,0,17,18,20,19,21,22,19,20,18,126,819,17473];
 
+// const STATE_FOR_PORTAL_KING_ILLEGAL_BUG = [9,0,0,0,0,0,0,0,73,0,11,14,0,0,41,0,0,41,0,0,0,9,0,64,0,0,0,41,0,0,0,0,17,0,0,19,0,17,0,64,0,64,17,0,0,0,0,0,0,0,22,0,0,17,64,0,0,241,0,0,0,0,0,0,33,21538,205346,2,3];
 const BOARD_SQUARE_INDICES = new Array(64).fill(0).map((_,i) => i);
 
 export default class Engine {
@@ -1174,9 +1175,13 @@ export default class Engine {
     return dangerMap;
   }
   
-  getAttackingTargetSquares(location: string, colour: number, collisionPieces: Set<number>, options: { state?: number[], skipModifiers?: SkipModifiersOptions; }) {
+  // this method works fine in general but in case of a portal square, pawns attack differently
+  // pawns can't capture through portal diagonally, as in if an enemy piece is on a square with portal, you have a pawn on a2, and there's
+  // a portal on b3, your a2 pawn cannot go through the portal and capture the enemy piece standing on the other portal. If you had a pawn on b2 however,
+  // you'd be able to do it. usePortalPawnCapture allows for that behaviour.
+  getAttackingTargetSquares(location: string, colour: number, collisionPieces: Set<number>, options: { state?: number[]; skipModifiers?: SkipModifiersOptions; usePortalPawnCapture?: boolean; }) {
     // debugger;
-    const { state: _state, skipModifiers } = options;
+    const { state: _state, skipModifiers, usePortalPawnCapture } = options;
     const skipPortal = skipModifiers?.skipPortal;
     const state = _state || this.state;
     const squareIndex = SQUARE_INDEX_MAP[location];
@@ -1186,8 +1191,8 @@ export default class Engine {
     const [, plusSquares] = this.getSquaresInDirection(location, DIRECTION.PLUS, { collisionPieces: collisionPieces, state, skipModifiers: { skipPortal } });
     const [, diagonalSquares] = this.getSquaresInDirection(location, DIRECTION.DIAGONAL, { collisionPieces: collisionPieces, state, skipModifiers: { skipPortal } });
     const [, knightSqaures] = this.getSquaresInDirection(location, DIRECTION.KNIGHT, { collisionPieces: collisionPieces, state, skipModifiers: { skipPortal } });
-    const [, _pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces: collisionPieces, state, depth: 1, skipModifiers: { skipPortal } });
-    const [, _reversePawnSquares] = this.getSquaresInDirection(location, reversePawnDirection, { collisionPieces: collisionPieces, state, depth: 1, skipModifiers: { skipPortal } });
+    const [, _pawnSquares] = this.getSquaresInDirection(location, pawnDirection, { collisionPieces: collisionPieces, state, depth: 1, skipModifiers: { skipPortal }, usePortalPawnCapture });
+    const [, _reversePawnSquares] = this.getSquaresInDirection(location, reversePawnDirection, { collisionPieces: collisionPieces, state, depth: 1, skipModifiers: { skipPortal }, usePortalPawnCapture });
     const [, kingSquares] = this.getSquaresInDirection(location, DIRECTION.ALL, { collisionPieces: new Set([ PIECES.KING | colour ]), state, depth: 1, skipModifiers: { skipPortal } });
     const [allPortalSquares] = skipPortal ? [new Set<number>(), new Set<number>()] : this.getSquaresWithPortalFromSquareIndexArr([ squareIndex ], targetPieces, state);
 
@@ -1209,7 +1214,7 @@ export default class Engine {
     }));
     const portalAttacks: number[] = [];
     Array.from(allPortalSquares).forEach((squareIndex) => {
-      const targetSquaresMap = this.getAttackingTargetSquares(LOCATION_MAP[squareIndex], colour, collisionPieces, { state, skipModifiers: { skipPortal: true } });
+      const targetSquaresMap = this.getAttackingTargetSquares(LOCATION_MAP[squareIndex], colour, collisionPieces, { state, skipModifiers: { skipPortal: true }, usePortalPawnCapture: true });
       Object.values(targetSquaresMap).forEach((targetSquareSet) => portalAttacks.push(...Array.from(targetSquareSet)));
     });
 
@@ -1285,8 +1290,8 @@ export default class Engine {
     return [squares, targetOnlySquares];
   }
 
-  getSquaresInDirection(location: string, direction: DIRECTION, options: { depth?: number; collisionPieces?: Set<number>; state?: number[]; skipModifiers?: SkipModifiersOptions; }) {
-    const { collisionPieces, state: _state, skipModifiers } = options;
+  getSquaresInDirection(location: string, direction: DIRECTION, options: { depth?: number; collisionPieces?: Set<number>; state?: number[]; skipModifiers?: SkipModifiersOptions; usePortalPawnCapture?: boolean; }) {
+    const { collisionPieces, state: _state, skipModifiers, usePortalPawnCapture } = options;
     const state = _state || this.state;
     const squareIndex = SQUARE_INDEX_MAP[location];
     const leftWall = new Set([0, 8, 16, 24, 32, 40, 48, 56]);
@@ -1403,38 +1408,77 @@ export default class Engine {
       if (direction === DIRECTION.W_PAWN || (colour === PIECES.WHITE && direction === DIRECTION.PAWN) || direction === DIRECTION.B_PAWN_REVERSE) {
         const collisionPieces = direction === DIRECTION.B_PAWN_REVERSE ? new Set([...BLACK_PIECES, PIECES.EN_PASSANT | PIECES.BLACK, PIECES.EMPTY]) : new Set([...WHITE_PIECES, PIECES.EN_PASSANT | PIECES.WHITE, PIECES.EMPTY]);
         targetPieces = ALL_PIECES.difference(collisionPieces);
-        const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_TOP, { depth: 1, collisionPieces, state });
         const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex + 8, state);
-        if (!ALL_PIECES.has(pieceWColour)) {
-          squares.push(squareIndex + 8);
-
-          if (squareIndex >= 8 && squareIndex <= 15) {
-            const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex + 16, state);
-            if (!ALL_PIECES.has(pieceWColour)) {
-              squares.push(squareIndex + 16);
+        if(usePortalPawnCapture) {
+          if(targetPieces.has(pieceWColour)) {
+            squares.push(squareIndex + 8);
+            targetOnlySquares.push(squareIndex + 8);
+          }
+          if(!ALL_PIECES.has(pieceWColour)) {
+            squares.push(squareIndex + 8);
+            if(squareIndex >= 8 && squareIndex <= 15) {
+              const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex + 16, state);
+              if(targetPieces.has(pieceWColour)) {
+                squares.push(squareIndex + 16);
+                targetOnlySquares.push(squareIndex + 16);
+              }
+              if(!ALL_PIECES.has(pieceWColour)) {
+                squares.push(squareIndex + 16)
+              }
             }
           }
+        } else {
+          if (!ALL_PIECES.has(pieceWColour)) {
+            squares.push(squareIndex + 8);
+            
+            if (squareIndex >= 8 && squareIndex <= 15) {
+              const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex + 16, state);
+              if (!ALL_PIECES.has(pieceWColour)) {
+                squares.push(squareIndex + 16);
+              }
+            }
+          }
+          const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_TOP, { depth: 1, collisionPieces, state });
+          captureSquares[0].forEach((s) => squares.push(s));
+          captureSquares[1].forEach((s) => targetOnlySquares.push(s));
         }
-        captureSquares[0].forEach((s) => squares.push(s));
-        captureSquares[1].forEach((s) => targetOnlySquares.push(s));
       } else if (direction === DIRECTION.B_PAWN || (colour === PIECES.BLACK && direction === DIRECTION.PAWN) || direction === DIRECTION.W_PAWN_REVERSE) {
         const collisionPieces = direction === DIRECTION.W_PAWN_REVERSE ? new Set([...WHITE_PIECES, PIECES.EN_PASSANT | PIECES.WHITE, PIECES.EMPTY]) : new Set([...BLACK_PIECES, PIECES.EN_PASSANT | PIECES.BLACK, PIECES.EMPTY]);
         targetPieces = ALL_PIECES.difference(collisionPieces);
-
-        const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_BOTTOM, { depth: 1, collisionPieces, state });
         const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex - 8, state);
-        if (!ALL_PIECES.has(pieceWColour)) {
-          squares.push(squareIndex - 8);
-
-          if (squareIndex >= 48 && squareIndex <= 55) {
-            const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex - 16, state);
-            if (!ALL_PIECES.has(pieceWColour)) {
-              squares.push(squareIndex - 16);
+        if(usePortalPawnCapture) {
+          if(targetPieces.has(pieceWColour)) {
+            squares.push(squareIndex - 8);
+            targetOnlySquares.push(squareIndex - 8);
+          }
+          if(!ALL_PIECES.has(pieceWColour)) {
+            squares.push(squareIndex - 8);
+            if(squareIndex >= 48 && squareIndex <= 55) {
+              const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex + 16, state);
+              if(targetPieces.has(pieceWColour)) {
+                squares.push(squareIndex - 16);
+                targetOnlySquares.push(squareIndex - 16);
+              }
+              if(!ALL_PIECES.has(pieceWColour)) {
+                squares.push(squareIndex - 16)
+              }
             }
           }
+        } else {
+          if (!ALL_PIECES.has(pieceWColour)) {
+            squares.push(squareIndex - 8);
+            
+            if (squareIndex >= 48 && squareIndex <= 55) {
+              const pieceWColour = this.extractPieceWColourFromSquareIndex(squareIndex - 16, state);
+              if (!ALL_PIECES.has(pieceWColour)) {
+                squares.push(squareIndex - 16);
+              }
+            }
+          }
+          const captureSquares = this.getSquaresInDirection(location, DIRECTION.DIAGONAL_BOTTOM, { depth: 1, collisionPieces, state });
+          captureSquares[0].forEach((s) => squares.push(s));
+          captureSquares[1].forEach((s) => targetOnlySquares.push(s));
         }
-        captureSquares[0].forEach((s) => squares.push(s));
-        captureSquares[1].forEach((s) => targetOnlySquares.push(s));
       }
     }
 
