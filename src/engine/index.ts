@@ -845,20 +845,28 @@ export default class Engine {
           nextState[toSquareIndex] |= TILE_MODIFIERS.REVERSE_PAWN;
         }
       }
+    }
 
-      // we only clear this in case of a move, this can cause an issue, setting a modifier is also a move
-      // but this'll only ever be an issue if say a pawn moved 2 places, and other player played a modifier
-      // and the original player who moved the pawn also played a modifier, in that case the next player can
-      // still target the pawn for en passant as if it just moved last turn, fixing this after shove
-      nextState = nextState.map((square, index) => {
-        if (index > 63) {
-          return square;
-        }
-        if (this.extractPiece(square) === PIECES.EN_PASSANT) {
-          return square ^ (square & BOARD_MASKS.PIECE_W_COLOUR);
-        }
+    // regardless of whether it's a modifier move or a regular move, enpassant should be cleared 
+    nextState = nextState.map((square, index) => {
+      if (index > 63) {
         return square;
-      });
+      }
+      if (this.extractPiece(square) === PIECES.EN_PASSANT) {
+        return square ^ (square & BOARD_MASKS.PIECE_W_COLOUR);
+      }
+      return square;
+    });
+
+    // if it's a non-modifier move
+    if(!modifierValue) {
+      const fromSquareIndex = SQUARE_INDEX_MAP[from];
+      const toSquareIndex = SQUARE_INDEX_MAP[to];
+
+      const fromSquare = state[fromSquareIndex];
+      const fromSquarePieceWColour = fromSquare & BOARD_MASKS.PIECE_W_COLOUR;
+      const fromPieceColour = fromSquarePieceWColour & BOARD_MASKS.COLOUR;
+      const fromSquarePiece = fromSquarePieceWColour & BOARD_MASKS.PIECES;
 
       if (fromSquarePiece === PIECES.PAWN) {
         if (fromPieceColour === PIECES.WHITE) {
