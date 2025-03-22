@@ -282,6 +282,9 @@ export const ALL_CARDS = [ CARDS.CLEAR_MODIFIER, CARDS.PORTAL, CARDS.TRENCH, CAR
 export const MAX_CARDS_IN_HAND = ALL_CARDS.length;
 // const ALL_CARDS = [ CARDS.REVERSE_PAWN, CARDS.REVERSE_PAWN, CARDS.REVERSE_PAWN, CARDS.REVERSE_PAWN ];
 
+// it should be set to 2 for 3-fold repetition but for this varient, cards make it really easy for positions to repeat (trench, clear, portal, clear, stuff like that)
+const REPEAT_DRAW_POSITION_COUNT = 4;
+
 type SkipModifiersOptions = {
   skipAll?: boolean;
   skipPortal?: boolean;
@@ -961,7 +964,7 @@ export default class Engine {
 
     // repeat draw
     const positionStr = nextState.slice(0, GAME_STATE_INDEX).join();
-    if(this.positionCountMap.get(positionStr) === 2) {
+    if(this.positionCountMap.get(positionStr) === REPEAT_DRAW_POSITION_COUNT) {
       console.log("REPEAT DRAW");
       
       if(!skipCommit) {

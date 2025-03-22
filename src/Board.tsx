@@ -173,7 +173,7 @@ const Board: React.FC<BoardProps> = (props) => {
         </div>
         <div>
           <button style={{ margin: "5px 10px", minWidth: "150px", border: "2px solid transparent"}}
-            disabled={!((drawCardSelection.length === selectedCards.length) || selectedCards.length === MAX_CARDS_IN_HAND)} onClick={() => {
+            disabled={!((drawCardSelection.length <= MAX_CARDS_IN_HAND && drawCardSelection.length === selectedCards.length) || selectedCards.length === MAX_CARDS_IN_HAND)} onClick={() => {
             console.log("selection", selectedCards.map((index) => drawCardSelection[index]));
             const selectedCardValues = selectedCards.map((index) => drawCardSelection[index]);
             engine.applyCardSelection(selectedCardValues);
