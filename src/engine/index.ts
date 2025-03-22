@@ -118,6 +118,8 @@ const MODIFIER_INDEX = {
   "3": TILE_MODIFIERS.SHOVE_PAWN,
 } as Record<string, number>;
 
+const TILE_MODIFIERS_TO_MODIFIER_INDEX_MAP = Object.fromEntries(Object.entries(MODIFIER_INDEX).map(e => e.reverse()));
+
 
 // wassup "⁰","¹","²","³","⁴","⁵","⁶","⁷","⁸","⁹"
 const MODIFIER_CHAR = {
@@ -192,6 +194,10 @@ const STATE_FOR_STALEMATE_TEST = [
 
 const STATE_FOR_CHECKMATE_BUG =  [10,12,11,13,14,11,12,10,9,9,9,9,0,9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,17,17,0,0,0,0,0,0,0,23,0,17,17,17,17,17,0,0,17,18,20,19,21,22,19,20,18,126];
 // const STATE_FOR_REVERSE_PAWN = [10,12,11,13,14,11,12,10,9,9,9,9,0,0,9,9,0,0,0,17,0,0,0,0,0,0,0,0,233,0,0,0,0,0,17,0,0,9,0,0,0,0,0,0,0,0,0,0,17,17,0,0,17,17,17,17,18,20,19,21,22,19,20,18,126,143908,3355204];
+
+// working example for test
+// /?moveHistory=H4sIAAAAAAAAA4uuViqpLEhVslLKzMssyUzMCS5JLElV0lEqS8wpBQpHG5roGBrrGOCEhuZ4JAlBSyBE5WOqMTLSMTQy0zG3MDEwhZImOiaxtTpwl+fmlyG5WCndTCHdXAm3vKOLS7yvv4unm6drULyTj6OzN1C9ghGxOsI9PENcQTp0DUm2xBiPDqizYwE19roHkgEAAA==
+// const STATE_FOR_CHECKMATE_TEST_W_CARD_MOVE = [14,13,0,0,0,0,0,0,0,0,0,0,0,0,0,17,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,9,0,0,0,0,0,0,9,0,0,0,0,0,0,0,0,0,22,126];
 
 const COLUMNS = "abcdefgh".split("");
 const SQUARE_INDEX_MAP = Object.fromEntries(COLUMNS.map((col, colIndex) => {
@@ -300,6 +306,8 @@ const CARD_DRAW_COUNTER_INITIAL_VALUE = 4;
 
 const STATE_FOR_PORTAL_BUG = [10,12,11,0,14,11,12,10,9,9,9,233,0,0,9,9,0,0,0,0,0,64,0,0,0,0,0,0,9,0,0,0,0,0,0,73,241,49,0,13,0,0,0,17,0,0,17,0,17,17,17,0,0,0,0,17,18,20,19,21,22,19,20,18,126,819,17473];
 
+const BOARD_SQUARE_INDICES = new Array(64).fill(0).map((_,i) => i);
+
 export default class Engine {
   private stateHistory: number[][];
   private positionCountMap: Map<string, number>;
@@ -400,7 +408,7 @@ export default class Engine {
       while(cardsNumber & CARDS.MASK) {
         const card = (cardsNumber & CARDS.MASK) as CARDS;
         cardsNumber >>= 4;
-        console.log(cardsNumber, card, MODIFIER_CHAR[CARD_TO_TILE_MODIFIERS_MAP[card]], CARD_TO_TILE_MODIFIERS_MAP[card], "====== carddds");
+        // console.log(cardsNumber, card, MODIFIER_CHAR[CARD_TO_TILE_MODIFIERS_MAP[card]], CARD_TO_TILE_MODIFIERS_MAP[card], "====== carddds");
         cards.push(MODIFIER_CHAR[CARD_TO_TILE_MODIFIERS_MAP[card]]);
       }
       return cards;
@@ -544,6 +552,7 @@ export default class Engine {
   }
 
   move(notation: string, options?: { skipCommit: boolean; state?: number[]; skipCheckMate?: boolean; skipStaleMate?: boolean; }): MOVE_RETURN_VALUES {
+    // debugger;
     const lastMoveReturnValue = this._move(notation, options);
     if(!options?.skipCommit) {
       this.lastMoveState = MOVE_RETURN_VALUES_MAP[lastMoveReturnValue];
@@ -937,7 +946,7 @@ export default class Engine {
     if(!skipStaleMate && this.checkStaleMate(nextState)) {
       console.log("STALEMATE");
       if(!skipCommit) {
-        this.state = nextState
+        this.state = nextState;
       }
       return MOVE_RETURN_VALUES.STALEMATE;
     }
@@ -948,7 +957,7 @@ export default class Engine {
       console.log("REPEAT DRAW");
       
       if(!skipCommit) {
-        this.state = nextState
+        this.state = nextState;
       }
       return MOVE_RETURN_VALUES.REPEATDRAW;
     } else {
@@ -1048,50 +1057,76 @@ export default class Engine {
     state[GAME_STATE_INDEX] = newGameState;
   }
   
-  checkStaleMate(_state: number[]) {
-    // debugger;
+  checkIfLegalMovesLeft(colour: PIECES.WHITE | PIECES.BLACK, _state: number[]) {
     const state = _state || this.state;
-    const currentTurn = this.getGameState(state).turn;
-    const colour = currentTurn === GAME_STATE.WHITE_TURN ? PIECES.WHITE : PIECES.BLACK;
     const boardSquares = state.slice(0, GAME_STATE_INDEX);
-    const colouredPiecesPositions = boardSquares.map((square, index) => {
-      if(this.extractColour(square) === colour) {
-        return this.indexToPosition(index);
-      }
-    }).filter(Boolean) as string[];
-    
-    return !colouredPiecesPositions.some((position) => {
-      const [ movableSquares ] = this.getMovableSquares(position, state);
-      
-      return Array.from(movableSquares).some((squareIndex) => {
-        const moveStr = `${position} ${this.indexToPosition(squareIndex)}`;
-        return this.move(moveStr, { skipCommit: true, skipStaleMate: true, skipCheckMate: true, state }) === MOVE_RETURN_VALUES.MOVE;
-      });
-    });
-  }
 
-  checkMate(colour: PIECES.WHITE | PIECES.BLACK, _state?: number[]) {
-    // debugger;
-    const state = _state || this.state;
-    const boardSquares = state.slice(0, GAME_STATE_INDEX);
+    const isColourWhite = colour === PIECES.WHITE;
 
     const colouredPiecesPositions = boardSquares.map((square, index) => {
       if(this.extractColour(square) === colour) {
         return this.indexToPosition(index);
       }
     }).filter(Boolean) as string[];
-    
-    return !colouredPiecesPositions.some((position) => {
+
+    const noLegalPieceMoveLeft = !colouredPiecesPositions.some((position) => {
       const [ movableSquares ] = this.getMovableSquares(position, state);
       console.log(movableSquares, "from checkmate!!!");
 
       return Array.from(movableSquares).some((squareIndex) => {
         const moveStr = `${position} ${this.indexToPosition(squareIndex)}`;
-        const moveRes = this.move(moveStr, { skipCommit: true, skipStaleMate: true, skipCheckMate: true, state });
-        console.log(moveStr, moveRes, moveRes === MOVE_RETURN_VALUES.MOVE, "from checkmate!!!!!");
         return this.move(moveStr, { skipCommit: true, skipStaleMate: true, skipCheckMate: true, state }) === MOVE_RETURN_VALUES.MOVE;
       });
     });
+
+    if(!noLegalPieceMoveLeft) {
+      return true;
+    }
+
+    // we don't necessarily need to worry about all cards, only some cards can prevent a checkmate
+    const applicableCardModifiers = new Set([ TILE_MODIFIERS.CLEAR_MODIFIER, TILE_MODIFIERS.REVERSE_PAWN, TILE_MODIFIERS.SHOVE_PAWN ]);
+    const availableCards = isColourWhite ? this.getCards(state).whiteCards : this.getCards(state).blackCards;
+    const availableTileModifiers = Array.from(new Set(availableCards.map((c) => CHAR_TO_MODIFIER_MAP[c]).filter((m) => applicableCardModifiers.has(parseInt(m))).map((m) => TILE_MODIFIERS_TO_MODIFIER_INDEX_MAP[m])));
+
+    if(availableTileModifiers.length) {
+      console.log("potential cards that can be used to escape checkmate", availableTileModifiers);
+    }
+
+    // this is probably too slow, can optimize this by filtering out just the tiles that actually matter, somewhat
+    // similar to what we do with the movable squares here (eg. pawn cards can only be played on pawns), but it's fine for now
+    const noLegalCardMovesLeft = !availableTileModifiers.some((card) => {
+      return BOARD_SQUARE_INDICES.some((squareIndex) => {
+        const moveStr = `ADD_MODIFIER_${isColourWhite ? "WHITE" : "BLACK"} ${this.indexToPosition(squareIndex)} ${card}`;
+        return this.move(moveStr, { skipCommit: true, skipStaleMate: true, skipCheckMate: true, state }) === MOVE_RETURN_VALUES.MOVE;
+      })
+    });
+
+    if(!noLegalCardMovesLeft) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // not sure why this is a separete method
+  checkStaleMate(_state: number[]) {
+    // debugger;
+    const state = _state || this.state;
+    const currentTurn = this.getGameState(state).turn;
+    const colour = currentTurn === GAME_STATE.WHITE_TURN ? PIECES.WHITE : PIECES.BLACK;
+
+    return !this.checkIfLegalMovesLeft(colour, state);
+  }
+
+  // currently checkmate only checks for just the piece moves to determine whether it's a checkmate
+  // but there's a possibility that the opponent has a card that prevents the checkmate. I think I
+  // like it that way, because allowing people to escape checkmate with a card move will also force
+  // them to play cards to prevent a stalemate. I think it is more natural to keep it as is, but I'll
+  // implement the card move check anyway. If this game was being played physically, and someone claimed a 
+  // stalemate, you could always force them to reveal their cards to guarantee that it's an actual stalemate.
+  checkMate(colour: PIECES.WHITE | PIECES.BLACK, _state?: number[]) {
+    const state = _state || this.state;
+    return !this.checkIfLegalMovesLeft(colour, state);
   }
 
   getKingSquareIndexMap(_state: number[]) {

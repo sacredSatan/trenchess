@@ -125,14 +125,15 @@ const Board: React.FC<BoardProps> = (props) => {
   console.log(activeModifier, "MOD");
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const currentTurn = isWhite ? engine.getCurrentTurn() === "white" : engine.getCurrentTurn() === "black";
+  const isCurrentTurn = isWhite ? engine.getCurrentTurn() === "white" : engine.getCurrentTurn() === "black";
+  const modifierMoveName = `ADD_MODIFIER_${debug ? engine.getCurrentTurn().toUpperCase() : isWhite ? "WHITE" : "BLACK"}`;
   let shouldShowCardDraw = false;
   if(debug) {
     shouldShowCardDraw = engine.getCurrentTurn() === "black" ? debugCards.blackCardDrawCounter === 0 : debugCards.whiteCardDrawCounter === 0;
   } else if(replay) {
     shouldShowCardDraw = false;
   } else {
-    shouldShowCardDraw = currentTurn && cardDrawCounter === 0;
+    shouldShowCardDraw = isCurrentTurn && cardDrawCounter === 0;
   }
   
   return <>
@@ -152,6 +153,9 @@ const Board: React.FC<BoardProps> = (props) => {
             setPromotionMove(undefined);
           } else {
             alert(MOVE_RETURN_VALUES_MAP[moveValue]);
+            setPromotionMove(undefined);
+            setMovableSquares(undefined);
+            activePosition.current = undefined;
           }
         }}><div style={{ ...pieceStyle, backgroundImage: `url(./pieces/${pieceImageName}.svg)`, backgroundSize: "contain" }}></div></div>;
       })}
@@ -202,7 +206,7 @@ const Board: React.FC<BoardProps> = (props) => {
               setActiveModifier(undefined);
               return;
             }
-            const move = `ADD_MODIFIER_${isWhite ? "WHITE" : "BLACK"} ${positionName} ${activeModifier}`;
+            const move = `${modifierMoveName} ${positionName} ${activeModifier}`;
             const moveValue = engine.move(move);
             if(moveValue > 1) {
               setActiveModifier(undefined);
