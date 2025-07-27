@@ -1,0 +1,30 @@
+[package]
+name = "rust-engine"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+wasm-bindgen="0.2.11"
+wee_alloc = "0.4.5"
+
+[dependencies.web-sys]
+features = ["console"]
+version = "0.3.77"
+
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false
+
+[package.metadata.wasm-pack.profile.release]  
+wasm-opt = false
+
+[profile.dev]
+debug = true
+opt-level = 0
+
+[profile.release]
+debug = true  # Keep debug info for WASM

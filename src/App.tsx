@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 import Board from './Board';
 import { clientConnect, clientInitialize, getDataConnection, hostInitialize, PEER_ID_PREFIX, setupHostConnection } from './p2p';
 import { inflate } from "pako";
+import { useRustEngine } from "./hooks/useRustEngine.js";
 
 const engine = new Engine();
 
 function App() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const { rustEngine, wasmLoading, wasmError } = useRustEngine();
   const [ [ position, moveState, cards, moveHistory ], setPosition ] = useState(engine.getPositions());
   const [ isWhite, setIsWhite ] = useState<boolean | null>(null);
   const [ loading, setLoading ] = useState(false);
@@ -111,6 +113,27 @@ function App() {
       joinHandler(tmpGameId);
     }
   }, []);
+
+  useEffect(() => {
+    if(rustEngine && !wasmLoading && !wasmError) {
+      const stateToSet = engine.state.slice(0, 64) as any;
+      rustEngine.set_state(new Uint16Array(stateToSet));
+
+      // console.log("rust js: setting this state", stateToSet);
+      // console.log("rust js: clear board");
+      // rustEngine.clear_board();
+      // stateToSet.forEach((value, index) => {
+      //   console.log("rust js: reached state set: ", index, "|  value: ", value);
+      //   rustEngine.set_square(index, value);
+      // });
+      // const stateToSet = [10,0,11,0,0,10,14,0,9,9,9,9,13,9,9,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,19,9,0,0,0,0,0,0,0,0,0,0,0,0,17,17,17,0,0,17,17,17,18,0,19,21,0,18,22,0];
+      // rustEngine.set_state(new Uint16Array(stateToSet));
+      // console.log("rust js: ", rustEngine.test_basic());
+      // console.log("rust js: ", rustEngine.test_string());
+      
+      rustEngine.draw();
+    }
+  }, [ position, rustEngine, wasmLoading, wasmError ]);
   
   if(!peerId && !debug && !replay) {
     return (

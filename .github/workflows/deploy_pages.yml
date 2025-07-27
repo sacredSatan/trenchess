@@ -12,6 +12,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup rust
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build wasm
+        run: ./build.sh
+        working-directory: rust-engine
+
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
