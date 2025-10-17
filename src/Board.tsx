@@ -22,6 +22,7 @@ type BoardProps = {
   cardDrawCounter: number;
   replay: boolean;
   disableMoves: boolean;
+  engineMode: boolean;
 }
 
 const moveHistoryGridStyle = {
@@ -109,7 +110,7 @@ const pieceStyle = { position: "absolute" as const, top: 0, bottom: 0, width: "1
 const PIECE_CHARS = ["k", "q", "r", "b", "n", "p"].map((c) => [ c.toUpperCase(), c ]).flat();
 
 const Board: React.FC<BoardProps> = (props) => {
-  const { position, setPosition, engine, connection, isWhite, cards, moveHistory, debug, cardDrawCounter, replay, storedMoveHistory, debugCards, disableMoves } = props;
+  const { position, setPosition, engine, connection, isWhite, cards, moveHistory, debug, cardDrawCounter, replay, storedMoveHistory, debugCards, disableMoves, engineMode } = props;
   const activePosition = useRef<string>();
   const [ movableSquares, setMovableSquares ] = useState<Set<number>>();
   const [ promotionMove, setPromotionMove ] = useState<string>();
@@ -134,6 +135,10 @@ const Board: React.FC<BoardProps> = (props) => {
     shouldShowCardDraw = false;
   } else {
     shouldShowCardDraw = isCurrentTurn && cardDrawCounter === 0;
+  }
+
+  if(engineMode) {
+    shouldShowCardDraw = false;
   }
   
   return <>

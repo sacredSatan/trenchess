@@ -312,19 +312,105 @@ const STATE_FOR_PORTAL_BUG = [10,12,11,0,14,11,12,10,9,9,9,233,0,0,9,9,0,0,0,0,0
 // const STATE_FOR_PORTAL_KING_ILLEGAL_BUG = [9,0,0,0,0,0,0,0,73,0,11,14,0,0,41,0,0,41,0,0,0,9,0,64,0,0,0,41,0,0,0,0,17,0,0,19,0,17,0,64,0,64,17,0,0,0,0,0,0,0,22,0,0,17,64,0,0,241,0,0,0,0,0,0,33,21538,205346,2,3];
 const BOARD_SQUARE_INDICES = new Array(64).fill(0).map((_,i) => i);
 
+enum EngineModes {
+  trenchess,
+  chess,
+}
+
 export default class Engine {
+  private mode: EngineModes;
   private stateHistory: number[][];
   private positionCountMap: Map<string, number>;
   private lastMoveState: string;
   private moveHistory: { type: string; value: string | string[] | number[] }[];
 
-  constructor(initialState?: number[]) {
+  constructor(initialState?: number[], mode?: EngineModes) {
     this.stateHistory = [initialState ?? DEFAULT_STATE ?? STATE_FOR_PORTAL_BUG ?? STATE_FOR_CASTLE_BUG ?? STATE_FOR_TRENCH_TEST ?? STATE_FOR_PORTAL_TEST ?? STATE_FOR_CHECKMATE_BUG ?? STATE_FOR_ILLEGAL_MATE_TEST ?? STATE_FOR_STALEMATE_TEST ?? STATE_FOR_PROMOTION_TEST ?? STATE_FOR_CASTLE_TEST ?? STATE_FOR_PROMOTION_TEST];
     this.positionCountMap = new Map();
     this.lastMoveState = MOVE_RETURN_VALUES_MAP[MOVE_RETURN_VALUES.MOVE];
     this.moveHistory = [];
+    this.mode = mode ?? EngineModes.trenchess;
   }
 
+  fenToState(fen: string) {
+    // will ignore half moves right now, haven't implemented 50 move draw anyway
+    const [ placement, moveColour, castle, enPassant, halfmoves, fullmoves ] = fen.split(" ");
+    const state = [];
+    
+    const charMap = {
+      p: PIECES.PAWN,
+      n: PIECES.KNIGHT,
+      b: PIECES.BISHOP,
+      r: PIECES.ROOK,
+      q: PIECES.QUEEN,
+      k: PIECES.KING,
+    } as any;
+    const rows = placement.split("/").reverse();
+    for(const row of rows) {
+      for(const char of row) {
+        if(!isNaN(parseInt(char))) {
+          state.push(...Array(parseInt(char)).fill(PIECES.EMPTY));
+          continue;
+        }
+        const lowerChar = char.toLowerCase();
+        const colour = lowerChar === char ? PIECES.BLACK : PIECES.WHITE;
+        state.push(charMap[lowerChar] | colour);
+      }
+    }
+
+    let gameState = GAME_STATE_MASKS.W_ILLEGAL | GAME_STATE_MASKS.B_ILLEGAL;
+    if(moveColour.toLowerCase() === "w") {
+      gameState |= GAME_STATE.WHITE_TURN;
+    } else {
+      gameState |= GAME_STATE.BLACK_TURN;
+    }
+
+    if(castle.includes("K")) {
+      gameState |= GAME_STATE_MASKS.WK_CASTLE;
+    }
+
+    if(castle.includes("Q")) {
+      gameState |= GAME_STATE_MASKS.WQ_CASTLE;
+    }
+
+    if(castle.includes("k")) {
+      gameState |= GAME_STATE_MASKS.BK_CASTLE;
+    }
+
+    if(castle.includes("q")) {
+      gameState |= GAME_STATE_MASKS.BQ_CASTLE;
+    }
+
+    if(enPassant !== "-") {
+      const colour = moveColour.toLowerCase() === "w" ? PIECES.WHITE : PIECES.BLACK;
+      state[SQUARE_INDEX_MAP[enPassant]] = PIECES.EN_PASSANT | colour;
+    }
+    return state;
+  }
+
+  // mainly for perft
+  generateLegalMoves(_state?: number[]) {
+    const state = _state || this.state;
+    const squareNames = Object.keys(SQUARE_INDEX_MAP);
+    const legalMoves = new Set();
+    const turn = this.getCurrentTurn(state);
+    for(const squareName of squareNames) {
+      const pieceColour = this.extractColour(state[SQUARE_INDEX_MAP[squareName]]);
+      // console.log(squareName, pieceColour, turn);
+      if(turn === "white" && pieceColour === PIECES.BLACK) {
+        continue;
+      } else if(turn === "black" && pieceColour === PIECES.WHITE) {
+        continue;
+      }
+      const [ movableSquares ] = this.getMovableSquares(squareName, state);
+      movableSquares.forEach((destination) => {
+        legalMoves.add(`${squareName} ${LOCATION_MAP[destination]}`);
+      });
+    }
+
+    return legalMoves;
+  } 
+  
   get state() {
     return this.stateHistory[this.stateHistory.length - 1];
   }
@@ -388,7 +474,7 @@ export default class Engine {
   }
 
   getGameState(state?: number[]) {
-    console.log(this.state, state, GAME_STATE_INDEX, "GET GAME STATE ====== debugggg")
+    //+++ console.log(this.state, state, GAME_STATE_INDEX, "GET GAME STATE ====== debugggg")
     const gameStateNumber = (state || this.state)?.at(GAME_STATE_INDEX) ?? 0;
     
     return {
@@ -412,13 +498,13 @@ export default class Engine {
       while(cardsNumber & CARDS.MASK) {
         const card = (cardsNumber & CARDS.MASK) as CARDS;
         cardsNumber >>= 4;
-        // console.log(cardsNumber, card, MODIFIER_CHAR[CARD_TO_TILE_MODIFIERS_MAP[card]], CARD_TO_TILE_MODIFIERS_MAP[card], "====== carddds");
+        // //+++ console.log(cardsNumber, card, MODIFIER_CHAR[CARD_TO_TILE_MODIFIERS_MAP[card]], CARD_TO_TILE_MODIFIERS_MAP[card], "====== carddds");
         cards.push(MODIFIER_CHAR[CARD_TO_TILE_MODIFIERS_MAP[card]]);
       }
       return cards;
     });
 
-    console.log({ whiteCards, blackCards });
+    //+++ console.log({ whiteCards, blackCards });
 
     return {
       whiteCards,
@@ -525,20 +611,20 @@ export default class Engine {
     });
 
     boardRowStrings.reverse();
-    console.log(BOARD_BORDER_ROW);
-    console.log(boardRowStrings.join("\n"));
-    console.log(BOARD_BORDER_ROW);
-    console.log(BOARD_COL_ROW);
-    // console.log(`Mods: 0. ${MODIFIER_COLOR[TILE_MODIFIERS.TRENCH]("TRENCH")}, 1. ${MODIFIER_COLOR[TILE_MODIFIERS.PORTAL]("PORTAL")}, 2. ${MODIFIER_COLOR[TILE_MODIFIERS.ROYALTY_ONLY]("ROYALTY_ONLY")}, 3. ${MODIFIER_COLOR[TILE_MODIFIERS.BISHOP_ONLY]("BISHOP_ONLY")}, 4. ${MODIFIER_COLOR[TILE_MODIFIERS.ROOK_ONLY]("ROOK_ONLY")}`);
+    //+++ console.log(BOARD_BORDER_ROW);
+    //+++ console.log(boardRowStrings.join("\n"));
+    //+++ console.log(BOARD_BORDER_ROW);
+    //+++ console.log(BOARD_COL_ROW);
+    // //+++ console.log(`Mods: 0. ${MODIFIER_COLOR[TILE_MODIFIERS.TRENCH]("TRENCH")}, 1. ${MODIFIER_COLOR[TILE_MODIFIERS.PORTAL]("PORTAL")}, 2. ${MODIFIER_COLOR[TILE_MODIFIERS.ROYALTY_ONLY]("ROYALTY_ONLY")}, 3. ${MODIFIER_COLOR[TILE_MODIFIERS.BISHOP_ONLY]("BISHOP_ONLY")}, 4. ${MODIFIER_COLOR[TILE_MODIFIERS.ROOK_ONLY]("ROOK_ONLY")}`);
 
-    console.log(this.getGameState());
+    //+++ console.log(this.getGameState());
     return this.state.at(GAME_STATE_INDEX)?.toString(2);
   }
 
   getPositions() {
     const turn = this.getGameState().turn;
     const cards = this.getCards();
-    console.log("getpositions cards", cards);
+    //+++ console.log("getpositions cards", cards);
     return [ Object.fromEntries(this.state.map((square, index) => {
       if (index > 63) {
         return;
@@ -568,7 +654,7 @@ export default class Engine {
         });
       }
     }
-    this.draw();
+    //+++ this.draw();
     return lastMoveReturnValue;
   }
 
@@ -583,7 +669,7 @@ export default class Engine {
 
     nextState[squareIndex] = pieceValue | color | modifier;
     this.state = nextState;
-    console.log(this.state, "==== last state");
+    //+++ console.log(this.state, "==== last state");
   }
   
   // I don't want to spend time implementing actual algebraic notation parsing right now (eventually will have to, when I want to support castles etc I guess)
@@ -697,14 +783,14 @@ export default class Engine {
 
       playerCards.splice(playerCardIndex, 1);
       const remainingCards = playerCards.map((card) => TILE_MODIFIERS_TO_CARD_MAP[CHAR_TO_MODIFIER_MAP[card]]);
-      console.log({ remainingCards });
+      //+++ console.log({ remainingCards });
       nextState[isInitiallyWhiteTurn ? WHITE_CARDS_INDEX : BLACK_CARDS_INDEX] = this.buildCardNumber(remainingCards);
   
       // this.switchTurns(state);
       // this.state = state;
-      // this.draw();
+      // //+++ this.draw();
   
-      // console.log(this.state, 'STATE MODIFIER');
+      // //+++ console.log(this.state, 'STATE MODIFIER');
       // return MOVE_RETURN_VALUES.MOVE;
     } else {
       const [ promotionPiece ] = rest;
@@ -743,7 +829,7 @@ export default class Engine {
       const BLACK_PROMOTION_ROW = "abcdefgh".split("").map((col) => `${col}1`);
       if(fromSquarePieceWColour === (PIECES.PAWN | PIECES.WHITE) && WHITE_PROMOTION_ROW.includes(to)) {
         if(!promotionPiece) {
-          console.log("need to send promotion piece");
+          //+++ console.log("need to send promotion piece");
           return MOVE_RETURN_VALUES.INVALID;
         }
 
@@ -752,7 +838,7 @@ export default class Engine {
       }
       if(fromSquarePieceWColour === (PIECES.PAWN | PIECES.BLACK) && BLACK_PROMOTION_ROW.includes(to)) {
         if(!promotionPiece) {
-          console.log("need to send promotion piece");
+          //+++ console.log("need to send promotion piece");
           return MOVE_RETURN_VALUES.INVALID;
         }
 
@@ -892,12 +978,12 @@ export default class Engine {
     if (kingInDanger[PIECES.WHITE]) {
       // switched turns above
       if (isInitiallyWhiteTurn) {
-        console.log("TIS ILLEGAL");
+        //+++ console.log("TIS ILLEGAL");
         
         if(this.toggleIllegalState(PIECES.WHITE, { skipCommit })) {
           return MOVE_RETURN_VALUES.ILLEGAL;
         } else {
-          console.log("ILLEGAL 2, MATE");
+          //+++ console.log("ILLEGAL 2, MATE");
           return MOVE_RETURN_VALUES.ILLEGAL;
           // I want to keep illegal move mate around but people aren't used to illegal moves in online chess
           // imo in pawn endgames with lots of portals, players have to be very careful while moving their king
@@ -908,9 +994,9 @@ export default class Engine {
           // return MOVE_RETURN_VALUES.CHECKMATE;
         }
       } else {
-        console.log("CHECK!");
+        //+++ console.log("CHECK!");
         if(!skipCheckMate && this.checkMate(PIECES.WHITE, nextState)) {
-          console.log("CHECKMATE!!");
+          //+++ console.log("CHECKMATE!!");
           if(!skipCommit) {
             this.state = nextState;
           }
@@ -922,19 +1008,19 @@ export default class Engine {
     if (kingInDanger[PIECES.BLACK]) {
       // switched turns above
       if (!isInitiallyWhiteTurn) {
-        console.log("TIS ILLEGAL");
+        //+++ console.log("TIS ILLEGAL");
 
         if(this.toggleIllegalState(PIECES.BLACK, { skipCommit })) {
           return MOVE_RETURN_VALUES.ILLEGAL;
         } else {
-          console.log("ILLEGAL 2, MATE");
+          //+++ console.log("ILLEGAL 2, MATE");
           // remove illegal mates temporarily
           return MOVE_RETURN_VALUES.ILLEGAL;
         }
       } else {
-        console.log("CHECK!");
+        //+++ console.log("CHECK!");
         if(!skipCheckMate && this.checkMate(PIECES.BLACK, nextState)) {
-          console.log("CHECKMATE!!");
+          //+++ console.log("CHECKMATE!!");
           if(!skipCommit) {
             this.state = nextState;
           }
@@ -956,7 +1042,7 @@ export default class Engine {
 
     // stalemate
     if(!skipStaleMate && this.checkStaleMate(nextState)) {
-      console.log("STALEMATE");
+      //+++ console.log("STALEMATE");
       if(!skipCommit) {
         this.state = nextState;
       }
@@ -966,7 +1052,7 @@ export default class Engine {
     // repeat draw
     const positionStr = nextState.slice(0, GAME_STATE_INDEX).join();
     if(this.positionCountMap.get(positionStr) === REPEAT_DRAW_POSITION_COUNT) {
-      console.log("REPEAT DRAW");
+      //+++ console.log("REPEAT DRAW");
       
       if(!skipCommit) {
         this.state = nextState;
@@ -986,14 +1072,14 @@ export default class Engine {
         nextState[BLACK_CARD_DRAW_COUNTER_INDEX] = nextState[BLACK_CARD_DRAW_COUNTER_INDEX] - 1;
       }
       this.state = nextState;
-      console.log(this.state, "STATE");
+      //+++ console.log(this.state, "STATE");
     }
     return MOVE_RETURN_VALUES.MOVE;
   }
 
   undoMove() {
     if(this.stateHistory.length > 1) {
-      console.log("UNDO MOVE", this.stateHistory.length);
+      //+++ console.log("UNDO MOVE", this.stateHistory.length);
       const removedHistory = this.stateHistory.pop() ?? [];
       // repeat draw
       // since we replace instead of pushing state on card selection, popping without checking can cause issues
@@ -1001,11 +1087,11 @@ export default class Engine {
       const positionStr = removedHistory.slice(0, GAME_STATE_INDEX).join();
       const currentCount = this.positionCountMap.get(positionStr);
       if(!currentCount) {
-        console.log("SOMETHING's WRONG, position not mapped but present in history");
+        //+++ console.log("SOMETHING's WRONG, position not mapped but present in history");
       } else {
         this.positionCountMap.set(positionStr, currentCount - 1);
       }
-      console.log("UNDO MOVE DONE", this.stateHistory.length);
+      //+++ console.log("UNDO MOVE DONE", this.stateHistory.length);
     }
   }
   
@@ -1083,7 +1169,7 @@ export default class Engine {
 
     const noLegalPieceMoveLeft = !colouredPiecesPositions.some((position) => {
       const [ movableSquares ] = this.getMovableSquares(position, state);
-      console.log(movableSquares, "from checkmate!!!");
+      //+++ console.log(movableSquares, "from checkmate!!!");
 
       return Array.from(movableSquares).some((squareIndex) => {
         const moveStr = `${position} ${this.indexToPosition(squareIndex)}`;
@@ -1101,7 +1187,7 @@ export default class Engine {
     const availableTileModifiers = Array.from(new Set(availableCards.map((c) => CHAR_TO_MODIFIER_MAP[c]).filter((m) => applicableCardModifiers.has(parseInt(m))).map((m) => TILE_MODIFIERS_TO_MODIFIER_INDEX_MAP[m])));
 
     if(availableTileModifiers.length) {
-      console.log("potential cards that can be used to escape checkmate", availableTileModifiers);
+      //+++ console.log("potential cards that can be used to escape checkmate", availableTileModifiers);
     }
 
     // this is probably too slow, can optimize this by filtering out just the tiles that actually matter, somewhat
@@ -1235,7 +1321,7 @@ export default class Engine {
   checkSquareInDanger(location: string, colour: number, collisionPieces: Set<number>, options: { state?: number[], skipModifiers?: SkipModifiersOptions }) {
     const { state: _state, skipModifiers } = options;
     const squares = this.getAttackingTargetSquares(location, colour, collisionPieces, { state: _state, skipModifiers });
-    console.log({ squares });
+    //+++ console.log({ squares });
     return Object.values(squares).some((v) => v.size > 0);
   }
 
@@ -1248,7 +1334,7 @@ export default class Engine {
 
     this.switchTurns(state);
     this.state = state;
-    this.draw();
+    //+++ this.draw();
 
     return MOVE_RETURN_VALUES.MOVE;
   }

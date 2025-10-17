@@ -5,6 +5,7 @@ import Board from './Board';
 import { clientConnect, clientInitialize, getDataConnection, hostInitialize, PEER_ID_PREFIX, setupHostConnection } from './p2p';
 import { inflate } from "pako";
 import { useRustEngine } from "./hooks/useRustEngine.js";
+import { perft } from './engine/perft.js';
 
 const engine = new Engine();
 
@@ -86,6 +87,17 @@ function App() {
       setStoredMoveHistory(parsedHistory);
     }
   }, [ peerId, urlMoveHistory ]);
+
+  useEffect(() => {
+    if(debug) {
+      // @ts-ignore
+      globalThis.__engine = engine;
+      // @ts-ignore
+      globalThis.__setPosition = setPosition;
+      // @ts-ignore
+      globalThis.__perft = perft;
+    }
+  }, [ debug ]);
 
   const joinHandler = (peerId: string) => {
     console.log("joinehandler");
@@ -192,7 +204,7 @@ function App() {
       {debug ? <button type="button" onClick={(() => { engine.undoMove(); setPosition(engine.getPositions()) })}>undo move</button> : null}
       {debug ? <p>Debug mode is to mainly setup and try out positions, it might be broken.</p> : null}
       {/* @ts-expect-error who cares at this point */}
-      <Board disableMoves={new Set(["CHECKMATE", "STALEMATE", "REPEATDRAW", "RESIGNATION_W", "RESIGNATION_B"]).has(moveState.lastMoveState)} isWhite={isWhite} debug={debug} debugCards={cards} cardDrawCounter={isWhite ? cards.whiteCardDrawCounter : cards.blackCardDrawCounter} cards={isWhite ? cards.whiteCards : cards.blackCards} moveHistory={moveHistory} storedMoveHistory={storedMoveHistory} replay={replay} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} />
+      <Board disableMoves={new Set(["CHECKMATE", "STALEMATE", "REPEATDRAW", "RESIGNATION_W", "RESIGNATION_B"]).has(moveState.lastMoveState)} isWhite={isWhite} debug={debug} debugCards={cards} cardDrawCounter={isWhite ? cards.whiteCardDrawCounter : cards.blackCardDrawCounter} cards={isWhite ? cards.whiteCards : cards.blackCards} moveHistory={moveHistory} storedMoveHistory={storedMoveHistory} replay={replay} position={position} setPosition={setPosition} engine={engine} connection={getDataConnection()} engineMode={true} />
     </>
   )
 }
